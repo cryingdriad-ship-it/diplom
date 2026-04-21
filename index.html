@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>MyFitnessPal AI MVP</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <h1>MyFitnessPal: підрахунок калорій по фото</h1>
+        <p>Завантажте фото страви, виконайте AI-аналіз та збережіть запис у щоденник.</p>
+      </header>
+
+      <section class="grid">
+        <article class="card">
+          <h2>1) Фото страви</h2>
+          <div class="uploader">
+            <input id="image-input" type="file" accept="image/*" capture="environment" />
+            <img id="image-preview" alt="Попередній перегляд страви" hidden />
+            <div class="controls">
+              <button id="analyze-button" disabled>AI-аналіз</button>
+              <button id="clear-button" class="secondary">Очистити</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>2) Налаштування</h2>
+          <div class="controls">
+            <label>
+              Ціль:
+              <select id="goal-select">
+                <option value="loss">Схуднення</option>
+                <option value="maintain" selected>Підтримка ваги</option>
+                <option value="gain">Набір маси</option>
+              </select>
+            </label>
+            <label>
+              Порція:
+              <input id="portion-slider" type="range" min="0.5" max="2.5" step="0.1" value="1" />
+              <strong id="portion-value">1.0x</strong>
+            </label>
+          </div>
+          <p id="model-status" class="status">Завантаження AI-моделі...</p>
+          <p class="status">Кнопка встановлення PWA з'явиться, коли браузер підтримає встановлення.</p>
+          <button id="install-button" class="secondary" hidden>Встановити застосунок</button>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>3) Результат AI-аналізу</h2>
+          <div id="prediction-chips" class="chips"></div>
+          <div class="metrics">
+            <div class="metric"><span>Страва</span><strong id="guessed-food">—</strong></div>
+            <div class="metric"><span>Впевненість</span><strong id="confidence">—</strong></div>
+            <div class="metric"><span>Калорії</span><strong id="calories">—</strong></div>
+            <div class="metric"><span>Білки</span><strong id="proteins">—</strong></div>
+            <div class="metric"><span>Жири</span><strong id="fats">—</strong></div>
+            <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
+          </div>
+          <div class="controls">
+            <button id="save-entry" disabled>Додати у щоденник</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>4) Щоденник (сьогодні)</h2>
+          <div class="metrics">
+            <div class="metric"><span>Спожито</span><strong id="total-calories">0 ккал</strong></div>
+            <div class="metric"><span>Ціль</span><strong id="target-calories">2200 ккал</strong></div>
+            <div class="metric"><span>Виконання</span><strong id="target-percent">0%</strong></div>
+            <div class="metric"><span>Білки / Жири / Вуглеводи</span><strong id="macro-ratio">0 / 0 / 0 г</strong></div>
+          </div>
+          <progress id="target-progress" max="100" value="0"></progress>
+          <p id="empty-log" class="status">Записів за сьогодні ще немає.</p>
+          <ul id="daily-list" class="daily-list"></ul>
+          <div class="controls">
+            <button id="clear-day" class="secondary">Очистити день</button>
+          </div>
+        </article>
+      </section>
+
+      <p class="footer">
+        MVP: оцінка КБЖВ виконується автоматично на базі AI-класифікації фото та внутрішньої харчової бази.
+      </p>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,229 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, "Segoe UI", sans-serif;
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --text: #1b1e24;
+  --muted: #687083;
+  --accent: #4f46e5;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --border: #e5e7eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1020;
+    --card: #121a30;
+    --text: #eef2ff;
+    --muted: #9aa4bf;
+    --accent: #818cf8;
+    --border: #263352;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.topbar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.topbar h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.5rem;
+}
+
+.subtitle {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+
+.topbar p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1.2fr 1fr;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+h2 {
+  margin-top: 0;
+}
+
+.uploader {
+  display: grid;
+  gap: 0.8rem;
+}
+
+#image-preview {
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: rgba(120, 120, 120, 0.1);
+}
+
+input,
+select {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 0.65rem 0.8rem;
+  background: transparent;
+  color: var(--text);
+}
+
+button {
+  border-radius: 10px;
+  border: none;
+  padding: 0.65rem 0.8rem;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  border: 1px solid var(--border);
+  background: var(--accent);
+  background: transparent;
+  color: var(--text);
+}
+
+.controls {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.status {
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.status.ok {
+  color: var(--success);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.metric {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.metric strong {
+  font-size: 1.2rem;
+}
+
+.daily-list {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.daily-list li {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.daily-list small {
+  display: block;
+  color: var(--muted);
+}
+
+progress {
+  width: 100%;
+  margin-top: 0.8rem;
+}
+
+.daily-list .remove {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.footer {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
