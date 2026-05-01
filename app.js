@@ -9,10 +9,11 @@ const registerPasswordEl = document.getElementById("registerPassword");
 const loginFormEl = document.getElementById("loginForm");
 const loginEmailEl = document.getElementById("loginEmail");
 const loginPasswordEl = document.getElementById("loginPassword");
-const continueGuestButtonEl = document.getElementById("continueGuestButton");
+const continueGuestButtonEl = document.getElementById("guestModeButton");
 const accountEmailEl = document.getElementById("accountEmail");
 const sessionModeBadgeEl = document.getElementById("sessionModeBadge");
 const logoutButtonEl = document.getElementById("logoutButton");
+const switchToAccountButtonEl = document.getElementById("switchToAccountButton");
 
 const fileInputEl = document.getElementById("image-input");
 const imagePreviewEl = document.getElementById("image-preview");
@@ -133,6 +134,9 @@ function renderAuthState() {
   const inApp = sessionMode !== "anonymous";
   authCardEl.classList.toggle("hidden", inApp);
   appCardEl.classList.toggle("hidden", !inApp);
+  if (switchToAccountButtonEl) {
+    switchToAccountButtonEl.classList.toggle("hidden", !isGuestMode());
+  }
 
   if (sessionMode === "user" && currentUser) {
     accountEmailEl.textContent = currentUser.email;
@@ -518,7 +522,16 @@ function wireEvents() {
   loginFormEl.addEventListener("submit", (event) => {
     submitLogin(event).catch((error) => setMessage(error.message, true));
   });
-  continueGuestButtonEl.addEventListener("click", enterGuestMode);
+  if (continueGuestButtonEl) {
+    continueGuestButtonEl.addEventListener("click", enterGuestMode);
+  }
+  if (switchToAccountButtonEl) {
+    switchToAccountButtonEl.addEventListener("click", () => {
+      sessionMode = "anonymous";
+      renderAuthState();
+      setMessage("Увійдіть у свій акаунт або створіть новий.");
+    });
+  }
   logoutButtonEl.addEventListener("click", () => {
     logout().catch((error) => setMessage(error.message, true));
   });
