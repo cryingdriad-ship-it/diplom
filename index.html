@@ -19,7 +19,7 @@
         <h2>Авторизація</h2>
         <p class="status">Створіть акаунт або увійдіть, щоб зберігати дані в персональному щоденнику.</p>
         <div class="controls">
-          <button id="continueGuestButton" class="secondary" type="button">Увійти як гість</button>
+          <button id="guestModeButton" class="secondary" type="button">Увійти як гість</button>
         </div>
         <div class="auth-grid">
           <form id="registerForm" class="card-inset">
@@ -45,6 +45,7 @@
             <p id="sessionModeBadge" class="status">Не авторизовано</p>
           </div>
           <div class="controls">
+            <button id="switchToAccountButton" class="secondary hidden" type="button">Увійти в акаунт</button>
             <button id="logoutButton" class="secondary" type="button">Вийти</button>
             <button id="install-button" class="secondary" hidden type="button">Встановити застосунок</button>
           </div>
@@ -146,6 +147,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=3"></script>
   </body>
 </html>
