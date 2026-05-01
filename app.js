@@ -1,284 +1,204 @@
+const authCardEl = document.getElementById("authCard");
+const appCardEl = document.getElementById("appCard");
+const appMessageEl = document.getElementById("appMessage");
 const modelStatusEl = document.getElementById("model-status");
-const fileInput = document.getElementById("image-input");
-const imagePreview = document.getElementById("image-preview");
-const analyzeButton = document.getElementById("analyze-button");
-const clearButton = document.getElementById("clear-button");
+
+const registerFormEl = document.getElementById("registerForm");
+const registerEmailEl = document.getElementById("registerEmail");
+const registerPasswordEl = document.getElementById("registerPassword");
+const loginFormEl = document.getElementById("loginForm");
+const loginEmailEl = document.getElementById("loginEmail");
+const loginPasswordEl = document.getElementById("loginPassword");
+const accountEmailEl = document.getElementById("accountEmail");
+const logoutButtonEl = document.getElementById("logoutButton");
+
+const fileInputEl = document.getElementById("image-input");
+const imagePreviewEl = document.getElementById("image-preview");
+const analyzeButtonEl = document.getElementById("analyze-button");
+const clearButtonEl = document.getElementById("clear-button");
+const gramsInputEl = document.getElementById("grams-input");
+const entryDateEl = document.getElementById("entry-date");
+const viewDateEl = document.getElementById("view-date");
+const refreshDayEl = document.getElementById("refresh-day");
+const goalSelectEl = document.getElementById("goal-select");
+const installButtonEl = document.getElementById("install-button");
+
+const chipsEl = document.getElementById("prediction-chips");
 const guessedFoodEl = document.getElementById("guessed-food");
-const confidenceEl = document.getElementById("confidence");
+const sourceEl = document.getElementById("nutrition-source");
+const gramsEl = document.getElementById("detected-grams");
 const caloriesEl = document.getElementById("calories");
 const proteinsEl = document.getElementById("proteins");
 const fatsEl = document.getElementById("fats");
 const carbsEl = document.getElementById("carbs");
-const saveEntryButton = document.getElementById("save-entry");
-const diaryListEl = document.getElementById("daily-list");
-const emptyLogEl = document.getElementById("empty-log");
+const confidenceEl = document.getElementById("confidence");
+const saveEntryButtonEl = document.getElementById("save-entry");
+
 const totalCaloriesEl = document.getElementById("total-calories");
 const targetCaloriesEl = document.getElementById("target-calories");
 const targetPercentEl = document.getElementById("target-percent");
 const targetProgressEl = document.getElementById("target-progress");
 const macroRatioEl = document.getElementById("macro-ratio");
-const portionSliderEl = document.getElementById("portion-slider");
-const portionValueEl = document.getElementById("portion-value");
-const goalSelectEl = document.getElementById("goal-select");
-const chipsEl = document.getElementById("prediction-chips");
-const clearDayButton = document.getElementById("clear-day");
-const installButton = document.getElementById("install-button");
+const emptyLogEl = document.getElementById("empty-log");
+const diaryListEl = document.getElementById("daily-list");
+const clearDayButtonEl = document.getElementById("clear-day");
 
-const APP_STORAGE_KEY = "myfitnesspal_daily_log_v1";
+const weekAverageEl = document.getElementById("weekly-average");
+const historyListEl = document.getElementById("history-list");
 
-const FOOD_DB = [
-  {
-    id: "salad",
-    name: "Овочевий салат",
-    aliases: ["salad", "greens", "vegetable", "lettuce", "spinach"],
-    perServing: { calories: 120, protein: 4, fat: 7, carbs: 10 }
-  },
-  {
-    id: "apple",
-    name: "Яблуко",
-    aliases: ["apple", "granny", "pomegranate"],
-    perServing: { calories: 95, protein: 0.5, fat: 0.3, carbs: 25 }
-  },
-  {
-    id: "banana",
-    name: "Банан",
-    aliases: ["banana", "plantain"],
-    perServing: { calories: 105, protein: 1.3, fat: 0.4, carbs: 27 }
-  },
-  {
-    id: "orange",
-    name: "Апельсин",
-    aliases: ["orange", "citrus"],
-    perServing: { calories: 62, protein: 1.2, fat: 0.2, carbs: 15.4 }
-  },
-  {
-    id: "pizza",
-    name: "Піца (1 шматок)",
-    aliases: ["pizza"],
-    perServing: { calories: 285, protein: 12, fat: 10, carbs: 36 }
-  },
-  {
-    id: "burger",
-    name: "Бургер",
-    aliases: ["burger", "cheeseburger", "hamburger", "sandwich"],
-    perServing: { calories: 354, protein: 17, fat: 17, carbs: 31 }
-  },
-  {
-    id: "fries",
-    name: "Картопля фрі",
-    aliases: ["fries", "french", "potato"],
-    perServing: { calories: 312, protein: 3.4, fat: 15, carbs: 41 }
-  },
-  {
-    id: "rice",
-    name: "Рис",
-    aliases: ["rice"],
-    perServing: { calories: 205, protein: 4.3, fat: 0.4, carbs: 45 }
-  },
-  {
-    id: "chicken",
-    name: "Куряче філе",
-    aliases: ["chicken", "hen", "meat", "roast", "grilled"],
-    perServing: { calories: 220, protein: 40, fat: 5, carbs: 0 }
-  },
-  {
-    id: "steak",
-    name: "Яловичий стейк",
-    aliases: ["beef", "steak", "sirloin", "meat"],
-    perServing: { calories: 271, protein: 25, fat: 19, carbs: 0 }
-  },
-  {
-    id: "pasta",
-    name: "Паста",
-    aliases: ["pasta", "spaghetti", "noodle", "macaroni"],
-    perServing: { calories: 221, protein: 8, fat: 1.3, carbs: 43 }
-  },
-  {
-    id: "soup",
-    name: "Суп",
-    aliases: ["soup", "broth"],
-    perServing: { calories: 150, protein: 8, fat: 5, carbs: 18 }
-  },
-  {
-    id: "fish",
-    name: "Риба",
-    aliases: ["fish", "salmon", "tuna", "trout"],
-    perServing: { calories: 233, protein: 25, fat: 14, carbs: 0 }
-  },
-  {
-    id: "cake",
-    name: "Торт / Десерт",
-    aliases: ["cake", "dessert", "chocolate", "ice cream", "cookie"],
-    perServing: { calories: 350, protein: 4, fat: 18, carbs: 43 }
-  }
-];
+const CALORIE_TARGETS = { loss: 1700, maintain: 2000, gain: 2400 };
 
 let model = null;
-let currentImageDataUrl = "";
+let currentUser = null;
+let currentImageData = "";
 let currentAnalysis = null;
-let dailyLog = [];
+let currentDayEntries = [];
+let currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 let deferredPrompt = null;
-const CALORIE_TARGETS = {
-  loss: 1700,
-  maintain: 2000,
-  gain: 2400
-};
 
 function round(value) {
-  return Math.round(value * 10) / 10;
-}
-
-function setModelStatus(text, isReady = false) {
-  modelStatusEl.textContent = text;
-  modelStatusEl.classList.toggle("ok", isReady);
-}
-
-function setNutritionResult(foodName, confidence, macros) {
-  guessedFoodEl.textContent = foodName || "—";
-  confidenceEl.textContent = confidence ? `${round(confidence * 100)}%` : "—";
-  caloriesEl.textContent = macros ? `${round(macros.calories)}` : "0";
-  proteinsEl.textContent = macros ? `${round(macros.protein)}` : "0";
-  fatsEl.textContent = macros ? `${round(macros.fat)}` : "0";
-  carbsEl.textContent = macros ? `${round(macros.carbs)}` : "0";
-}
-
-function estimatePortionMultiplier(confidence) {
-  if (confidence >= 0.7) {
-    return 1;
-  }
-  if (confidence >= 0.45) {
-    return 0.9;
-  }
-  if (confidence >= 0.25) {
-    return 0.8;
-  }
-  return 0.7;
-}
-
-function findFoodByPrediction(className) {
-  const normalized = className.toLowerCase();
-  for (const food of FOOD_DB) {
-    const matched = food.aliases.some((alias) => normalized.includes(alias));
-    if (matched) {
-      return food;
-    }
-  }
-  return null;
-}
-
-function buildFallbackFood(className) {
-  return {
-    id: "fallback",
-    name: `Невизначена страва (${className})`,
-    perServing: { calories: 220, protein: 10, fat: 8, carbs: 25 }
-  };
-}
-
-function calculateMacros(food, confidence) {
-  const confidenceMultiplier = estimatePortionMultiplier(confidence);
-  const portionMultiplier = Number(portionSliderEl.value || 1);
-  const multiplier = confidenceMultiplier * portionMultiplier;
-  return {
-    calories: food.perServing.calories * multiplier,
-    protein: food.perServing.protein * multiplier,
-    fat: food.perServing.fat * multiplier,
-    carbs: food.perServing.carbs * multiplier
-  };
+  return Math.round(Number(value || 0) * 10) / 10;
 }
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function readStoredLog() {
+function setMessage(text, isError = false) {
+  appMessageEl.textContent = text;
+  appMessageEl.classList.toggle("error", Boolean(isError));
+}
+
+function setModelStatus(text, ok = false) {
+  modelStatusEl.textContent = text;
+  modelStatusEl.classList.toggle("ok", ok);
+}
+
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (options.body) {
+    headers["Content-Type"] = "application/json";
+  }
+  const response = await fetch(path, {
+    credentials: "include",
+    ...options,
+    headers
+  });
+  let data = {};
   try {
-    const raw = localStorage.getItem(APP_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed;
+    data = await response.json();
   } catch {
-    return [];
+    data = {};
   }
-}
-
-function writeStoredLog() {
-  localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(dailyLog));
-}
-
-function getTodayLog() {
-  const key = todayKey();
-  return dailyLog.filter((entry) => entry.dateKey === key);
-}
-
-function renderTotals() {
-  const todayLog = getTodayLog();
-  const totals = todayLog.reduce(
-    (acc, entry) => {
-      acc.calories += entry.calories;
-      acc.protein += entry.protein;
-      acc.fat += entry.fat;
-      acc.carbs += entry.carbs;
-      return acc;
-    },
-    { calories: 0, protein: 0, fat: 0, carbs: 0 }
-  );
-
-  const todayCalories = round(totals.calories);
-  totalCaloriesEl.textContent = `${todayCalories}`;
-  const target = CALORIE_TARGETS[goalSelectEl.value] || CALORIE_TARGETS.maintain;
-  targetCaloriesEl.textContent = `${target}`;
-  const percent = target ? Math.min(200, round((todayCalories / target) * 100)) : 0;
-  targetPercentEl.textContent = `${percent}`;
-  targetProgressEl.value = Math.min(100, percent);
-  macroRatioEl.textContent = `${round(totals.protein)} / ${round(totals.fat)} / ${round(totals.carbs)} г`;
-}
-
-function renderLog() {
-  diaryListEl.innerHTML = "";
-  const todayLog = getTodayLog();
-  emptyLogEl.hidden = todayLog.length > 0;
-
-  for (const entry of todayLog) {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <div>
-        <strong>${entry.foodName}</strong>
-        <small>${entry.time} • ${round(entry.calories)} ккал</small>
-      </div>
-      <button class="remove" data-id="${entry.id}" type="button">Видалити</button>
-    `;
-    diaryListEl.appendChild(li);
+  if (!response.ok) {
+    if (response.status === 401) {
+      currentUser = null;
+      renderAuthState();
+    }
+    throw new Error(data.error || "Помилка сервера");
   }
-  renderTotals();
+  return data;
 }
 
-function clearCurrentAnalysis() {
-  currentImageDataUrl = "";
-  currentAnalysis = null;
-  imagePreview.removeAttribute("src");
-  imagePreview.hidden = true;
-  fileInput.value = "";
-  setNutritionResult("", 0, null);
-  saveEntryButton.disabled = true;
-  chipsEl.innerHTML = "";
+function renderAuthState() {
+  const authenticated = Boolean(currentUser);
+  authCardEl.classList.toggle("hidden", authenticated);
+  appCardEl.classList.toggle("hidden", !authenticated);
+  accountEmailEl.textContent = authenticated ? currentUser.email : "—";
   updateAnalyzeButtonState();
 }
 
 function updateAnalyzeButtonState() {
-  analyzeButton.disabled = !model || !currentImageDataUrl;
+  analyzeButtonEl.disabled = !model || !currentImageData || !currentUser;
 }
 
-function handleImageSelected(file) {
+function setNutritionResult(result = null) {
+  guessedFoodEl.textContent = result ? result.foodName : "—";
+  sourceEl.textContent = result ? result.source : "—";
+  gramsEl.textContent = result ? `${round(result.grams)} г` : "—";
+  caloriesEl.textContent = result ? `${round(result.calories)}` : "—";
+  proteinsEl.textContent = result ? `${round(result.protein)}` : "—";
+  fatsEl.textContent = result ? `${round(result.fat)}` : "—";
+  carbsEl.textContent = result ? `${round(result.carbs)}` : "—";
+  confidenceEl.textContent = result ? `${round(result.confidence * 100)}%` : "—";
+}
+
+function clearCurrentAnalysis() {
+  currentImageData = "";
+  currentAnalysis = null;
+  chipsEl.innerHTML = "";
+  setNutritionResult(null);
+  saveEntryButtonEl.disabled = true;
+  imagePreviewEl.hidden = true;
+  imagePreviewEl.removeAttribute("src");
+  fileInputEl.value = "";
+  updateAnalyzeButtonState();
+}
+
+function renderTotals() {
+  const target = CALORIE_TARGETS[goalSelectEl.value] || CALORIE_TARGETS.maintain;
+  const calories = round(currentDayTotals.calories);
+  const percent = target ? Math.min(200, round((calories / target) * 100)) : 0;
+
+  totalCaloriesEl.textContent = `${calories} ккал`;
+  targetCaloriesEl.textContent = `${target} ккал`;
+  targetPercentEl.textContent = `${percent}%`;
+  targetProgressEl.value = Math.min(percent, 100);
+  macroRatioEl.textContent = `${round(currentDayTotals.protein)} / ${round(currentDayTotals.fat)} / ${round(currentDayTotals.carbs)} г`;
+}
+
+function renderDiary(entries) {
+  diaryListEl.innerHTML = "";
+  emptyLogEl.hidden = entries.length > 0;
+
+  entries.forEach((entry) => {
+    const localTime = new Date(entry.createdAt).toLocaleTimeString("uk-UA", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div>
+        <strong>${entry.foodName} (${round(entry.grams)} г)</strong>
+        <small>${localTime} • ${round(entry.calories)} ккал • ${entry.source}</small>
+      </div>
+      <button class="remove" data-id="${entry.id}" type="button">Видалити</button>
+    `;
+    diaryListEl.appendChild(li);
+  });
+}
+
+function renderHistory(days, weeklyAverageCalories) {
+  historyListEl.innerHTML = "";
+  [...days]
+    .reverse()
+    .forEach((day) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${day.date}</strong><small>${round(day.calories)} ккал</small>`;
+      historyListEl.appendChild(li);
+    });
+  weekAverageEl.textContent = `${round(weeklyAverageCalories)} ккал`;
+}
+
+async function loadDayDiary(date) {
+  const data = await api(`/api/diary/day?date=${encodeURIComponent(date)}`);
+  currentDayEntries = data.entries || [];
+  currentDayTotals = data.totals || { calories: 0, protein: 0, fat: 0, carbs: 0 };
+  renderDiary(currentDayEntries);
+  renderTotals();
+}
+
+async function loadHistory(days = 30) {
+  const data = await api(`/api/diary/history?days=${days}`);
+  renderHistory(data.days || [], data.weeklyAverageCalories || 0);
+}
+
+async function handleImageSelect(file) {
   const reader = new FileReader();
   reader.onload = () => {
-    currentImageDataUrl = reader.result;
-    imagePreview.src = currentImageDataUrl;
-    imagePreview.hidden = false;
+    currentImageData = String(reader.result || "");
+    imagePreviewEl.src = currentImageData;
+    imagePreviewEl.hidden = false;
     updateAnalyzeButtonState();
   };
   reader.readAsDataURL(file);
@@ -288,44 +208,33 @@ async function loadModel() {
   try {
     setModelStatus("Завантаження AI-моделі...");
     if (typeof mobilenet === "undefined") {
-      throw new Error("MobileNet library is unavailable.");
+      throw new Error("MobileNet недоступний");
     }
     model = await mobilenet.load({ version: 2, alpha: 1.0 });
     setModelStatus("Модель готова до аналізу", true);
     updateAnalyzeButtonState();
   } catch (error) {
-    setModelStatus("Помилка завантаження моделі");
+    setModelStatus("Помилка завантаження AI-моделі");
     modelStatusEl.classList.add("error");
-    console.error(error);
+    setMessage(error.message, true);
   }
 }
 
-async function analyzeCurrentImage() {
-  if (!model || !currentImageDataUrl) {
+async function analyzeImage() {
+  if (!currentUser || !model || !currentImageData) {
     return;
   }
-  analyzeButton.disabled = true;
-  analyzeButton.textContent = "Аналіз...";
+  analyzeButtonEl.disabled = true;
+  analyzeButtonEl.textContent = "Аналіз...";
+  setMessage("Виконується AI-аналіз та запит до food API...");
 
   try {
-    const predictions = await model.classify(imagePreview, 3);
-    const topPrediction = predictions[0];
-    if (!topPrediction) {
-      throw new Error("No predictions");
+    const predictions = await model.classify(imagePreviewEl, 3);
+    const top = predictions[0];
+    if (!top) {
+      throw new Error("AI не розпізнав страву");
     }
 
-    const foundFood = findFoodByPrediction(topPrediction.className);
-    const selectedFood = foundFood || buildFallbackFood(topPrediction.className);
-    const macros = calculateMacros(selectedFood, topPrediction.probability);
-
-    currentAnalysis = {
-      foodId: selectedFood.id,
-      foodName: selectedFood.name,
-      confidence: topPrediction.probability,
-      ...macros
-    };
-
-    setNutritionResult(selectedFood.name, topPrediction.probability, macros);
     chipsEl.innerHTML = "";
     predictions.forEach((p) => {
       const chip = document.createElement("span");
@@ -333,114 +242,205 @@ async function analyzeCurrentImage() {
       chip.textContent = `${p.className} — ${round(p.probability * 100)}%`;
       chipsEl.appendChild(chip);
     });
-    saveEntryButton.disabled = false;
-  } catch (error) {
-    console.error(error);
-    setNutritionResult("Помилка аналізу", 0, {
-      calories: 0,
-      protein: 0,
-      fat: 0,
-      carbs: 0
+
+    const grams = Math.max(1, Number(gramsInputEl.value || 250));
+    const estimate = await api("/api/food/estimate", {
+      method: "POST",
+      body: JSON.stringify({ query: top.className, grams })
     });
+
+    currentAnalysis = {
+      foodName: estimate.foodName,
+      grams: estimate.grams,
+      calories: estimate.calories,
+      protein: estimate.protein,
+      fat: estimate.fat,
+      carbs: estimate.carbs,
+      source: estimate.source,
+      confidence: top.probability
+    };
+    setNutritionResult(currentAnalysis);
+    saveEntryButtonEl.disabled = false;
+    setMessage("Аналіз завершено. Можна зберігати у щоденник.");
+  } catch (error) {
+    setNutritionResult(null);
+    setMessage(error.message || "Помилка аналізу", true);
   } finally {
+    analyzeButtonEl.textContent = "AI-аналіз";
     updateAnalyzeButtonState();
-    analyzeButton.textContent = "AI-аналіз";
   }
 }
 
-function saveCurrentEntry() {
-  if (!currentAnalysis) {
+async function saveEntry() {
+  if (!currentAnalysis || !currentUser) {
     return;
   }
-  const now = new Date();
-  const entry = {
-    ...currentAnalysis,
-    id: `${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
-    dateKey: todayKey(),
-    time: now.toLocaleTimeString("uk-UA", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
-  };
-  dailyLog.unshift(entry);
-  writeStoredLog();
-  renderLog();
-  saveEntryButton.disabled = true;
+  const dateKey = entryDateEl.value || todayKey();
+  await api("/api/diary/entries", {
+    method: "POST",
+    body: JSON.stringify({ ...currentAnalysis, dateKey })
+  });
+  saveEntryButtonEl.disabled = true;
+  if (viewDateEl.value === dateKey) {
+    await loadDayDiary(dateKey);
+  }
+  await loadHistory(30);
+  setMessage("Запис додано до щоденника.");
 }
 
-function removeEntry(entryId) {
-  dailyLog = dailyLog.filter((entry) => entry.id !== entryId);
-  writeStoredLog();
-  renderLog();
+async function deleteEntry(entryId) {
+  await api(`/api/diary/entries/${entryId}`, { method: "DELETE" });
+  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadHistory(30);
 }
 
-function clearTodayEntries() {
-  const key = todayKey();
-  dailyLog = dailyLog.filter((entry) => entry.dateKey !== key);
-  writeStoredLog();
-  renderLog();
+async function clearCurrentDay() {
+  const ids = currentDayEntries.map((entry) => entry.id);
+  for (const id of ids) {
+    await api(`/api/diary/entries/${id}`, { method: "DELETE" });
+  }
+  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadHistory(30);
+}
+
+async function submitRegister(event) {
+  event.preventDefault();
+  const email = registerEmailEl.value.trim();
+  const password = registerPasswordEl.value;
+  const user = await api("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+  currentUser = user;
+  renderAuthState();
+  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadHistory(30);
+  setMessage("Акаунт створено, ви увійшли в систему.");
+  registerFormEl.reset();
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  const email = loginEmailEl.value.trim();
+  const password = loginPasswordEl.value;
+  const user = await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+  currentUser = user;
+  renderAuthState();
+  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadHistory(30);
+  setMessage("Успішний вхід.");
+  loginFormEl.reset();
+}
+
+async function logout() {
+  await api("/api/auth/logout", { method: "POST" });
+  currentUser = null;
+  renderAuthState();
+  clearCurrentAnalysis();
+  diaryListEl.innerHTML = "";
+  historyListEl.innerHTML = "";
+  weekAverageEl.textContent = "0 ккал";
+  currentDayEntries = [];
+  currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+  renderTotals();
+  setMessage("Ви вийшли з акаунту.");
 }
 
 function initInstallPrompt() {
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredPrompt = event;
-    installButton.hidden = false;
+    installButtonEl.hidden = false;
   });
-
-  installButton.addEventListener("click", async () => {
+  installButtonEl.addEventListener("click", async () => {
     if (!deferredPrompt) {
       return;
     }
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     deferredPrompt = null;
-    installButton.hidden = true;
+    installButtonEl.hidden = true;
   });
 }
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./service-worker.js").catch((error) => {
-      console.error("SW registration failed", error);
-    });
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+  }
+}
+
+async function checkAuth() {
+  const data = await api("/api/auth/me");
+  currentUser = data.authenticated ? data.user : null;
+  renderAuthState();
+  if (currentUser) {
+    await loadDayDiary(viewDateEl.value || todayKey());
+    await loadHistory(30);
   }
 }
 
 function wireEvents() {
-  fileInput.addEventListener("change", (event) => {
+  registerFormEl.addEventListener("submit", (event) => {
+    submitRegister(event).catch((error) => setMessage(error.message, true));
+  });
+  loginFormEl.addEventListener("submit", (event) => {
+    submitLogin(event).catch((error) => setMessage(error.message, true));
+  });
+  logoutButtonEl.addEventListener("click", () => {
+    logout().catch((error) => setMessage(error.message, true));
+  });
+
+  fileInputEl.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (file) {
-      handleImageSelected(file);
+      handleImageSelect(file);
     }
   });
-  analyzeButton.addEventListener("click", analyzeCurrentImage);
-  saveEntryButton.addEventListener("click", saveCurrentEntry);
-  clearButton.addEventListener("click", clearCurrentAnalysis);
-  clearDayButton.addEventListener("click", clearTodayEntries);
-
-  portionSliderEl.addEventListener("input", () => {
-    portionValueEl.textContent = `${Number(portionSliderEl.value).toFixed(1)}x`;
+  analyzeButtonEl.addEventListener("click", () => {
+    analyzeImage().catch((error) => setMessage(error.message, true));
+  });
+  clearButtonEl.addEventListener("click", clearCurrentAnalysis);
+  saveEntryButtonEl.addEventListener("click", () => {
+    saveEntry().catch((error) => setMessage(error.message, true));
   });
 
+  clearDayButtonEl.addEventListener("click", () => {
+    clearCurrentDay().catch((error) => setMessage(error.message, true));
+  });
+  refreshDayEl.addEventListener("click", () => {
+    loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
+  });
+  viewDateEl.addEventListener("change", () => {
+    const date = viewDateEl.value || todayKey();
+    loadDayDiary(date).catch((error) => setMessage(error.message, true));
+  });
   goalSelectEl.addEventListener("change", renderTotals);
 
   diaryListEl.addEventListener("click", (event) => {
     const target = event.target;
     if (target instanceof HTMLElement && target.classList.contains("remove")) {
-      removeEntry(target.dataset.id);
+      const id = Number(target.dataset.id);
+      if (id) {
+        deleteEntry(id).catch((error) => setMessage(error.message, true));
+      }
     }
   });
 }
 
-function init() {
-  dailyLog = readStoredLog();
-  clearCurrentAnalysis();
-  renderLog();
+async function init() {
+  const today = todayKey();
+  entryDateEl.value = today;
+  viewDateEl.value = today;
+  setNutritionResult(null);
+  renderTotals();
   wireEvents();
   initInstallPrompt();
   registerServiceWorker();
-  loadModel();
+  await checkAuth();
+  await loadModel();
 }
 
-init();
+init().catch((error) => setMessage(error.message || "Помилка ініціалізації", true));

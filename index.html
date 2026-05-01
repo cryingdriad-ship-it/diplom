@@ -4,90 +4,140 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#4f46e5" />
-    <title>MyFitnessPal AI MVP</title>
+    <title>MyFitnessPal AI</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <h1>MyFitnessPal: підрахунок калорій по фото</h1>
-        <p>Завантажте фото страви, виконайте AI-аналіз та збережіть запис у щоденник.</p>
+        <h1>MyFitnessPal: AI-підрахунок калорій</h1>
+        <p>Акаунт, щоденник за минулі дні, середнє за тиждень та реальна food-база (USDA/FatSecret).</p>
       </header>
 
-      <section class="grid">
-        <article class="card">
-          <h2>1) Фото страви</h2>
-          <div class="uploader">
-            <input id="image-input" type="file" accept="image/*" capture="environment" />
-            <img id="image-preview" alt="Попередній перегляд страви" hidden />
-            <div class="controls">
-              <button id="analyze-button" disabled>AI-аналіз</button>
-              <button id="clear-button" class="secondary">Очистити</button>
+      <section id="authCard" class="card">
+        <h2>Авторизація</h2>
+        <p class="status">Створіть акаунт або увійдіть, щоб зберігати дані в персональному щоденнику.</p>
+        <div class="auth-grid">
+          <form id="registerForm" class="card-inset">
+            <h3>Реєстрація</h3>
+            <label>Email <input id="registerEmail" type="email" required /></label>
+            <label>Пароль (мін. 6 символів) <input id="registerPassword" type="password" minlength="6" required /></label>
+            <button type="submit">Створити акаунт</button>
+          </form>
+          <form id="loginForm" class="card-inset">
+            <h3>Вхід</h3>
+            <label>Email <input id="loginEmail" type="email" required /></label>
+            <label>Пароль <input id="loginPassword" type="password" required /></label>
+            <button type="submit">Увійти</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="appCard" class="hidden">
+        <article class="card account-bar">
+          <div>
+            <h2>Мій акаунт</h2>
+            <p id="accountEmail" class="status">—</p>
+          </div>
+          <div class="controls">
+            <button id="logoutButton" class="secondary" type="button">Вийти</button>
+            <button id="install-button" class="secondary" hidden type="button">Встановити застосунок</button>
+          </div>
+        </article>
+
+        <section class="grid">
+          <article class="card">
+            <h2>1) Фото страви</h2>
+            <div class="uploader">
+              <input id="image-input" type="file" accept="image/*" capture="environment" />
+              <img id="image-preview" alt="Попередній перегляд страви" hidden />
+              <div class="controls">
+                <button id="analyze-button" disabled type="button">AI-аналіз</button>
+                <button id="clear-button" class="secondary" type="button">Очистити</button>
+              </div>
             </div>
-          </div>
-        </article>
+          </article>
 
-        <article class="card">
-          <h2>2) Налаштування</h2>
-          <div class="controls">
-            <label>
-              Ціль:
-              <select id="goal-select">
-                <option value="loss">Схуднення</option>
-                <option value="maintain" selected>Підтримка ваги</option>
-                <option value="gain">Набір маси</option>
-              </select>
-            </label>
-            <label>
-              Порція:
-              <input id="portion-slider" type="range" min="0.5" max="2.5" step="0.1" value="1" />
-              <strong id="portion-value">1.0x</strong>
-            </label>
+          <article class="card">
+            <h2>2) Налаштування</h2>
+            <div class="controls">
+              <label>
+                Ціль:
+                <select id="goal-select">
+                  <option value="loss">Схуднення</option>
+                  <option value="maintain" selected>Підтримка ваги</option>
+                  <option value="gain">Набір маси</option>
+                </select>
+              </label>
+              <label>
+                Порція (грами):
+                <input id="grams-input" type="number" min="1" max="2000" value="250" />
+              </label>
+              <label>
+                Дата запису:
+                <input id="entry-date" type="date" />
+              </label>
+            </div>
+            <p id="model-status" class="status">Завантаження AI-моделі...</p>
+            <p class="status">Після розпізнавання запит уточнюється через USDA/FatSecret API.</p>
+          </article>
+        </section>
+
+        <section class="grid">
+          <article class="card">
+            <h2>3) Результат AI + Food API</h2>
+            <div id="prediction-chips" class="chips"></div>
+            <div class="metrics">
+              <div class="metric"><span>Страва</span><strong id="guessed-food">—</strong></div>
+              <div class="metric"><span>Джерело даних</span><strong id="nutrition-source">—</strong></div>
+              <div class="metric"><span>Порція (г)</span><strong id="detected-grams">—</strong></div>
+              <div class="metric"><span>Калорії</span><strong id="calories">—</strong></div>
+              <div class="metric"><span>Білки</span><strong id="proteins">—</strong></div>
+              <div class="metric"><span>Жири</span><strong id="fats">—</strong></div>
+              <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
+              <div class="metric"><span>AI-впевненість</span><strong id="confidence">—</strong></div>
+            </div>
+            <div class="controls">
+              <button id="save-entry" disabled type="button">Додати у щоденник</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <h2>4) Щоденник за обрану дату</h2>
+            <div class="controls">
+              <label>
+                Перегляд дати:
+                <input id="view-date" type="date" />
+              </label>
+              <button id="refresh-day" class="secondary" type="button">Оновити</button>
+            </div>
+            <div class="metrics">
+              <div class="metric"><span>Спожито</span><strong id="total-calories">0 ккал</strong></div>
+              <div class="metric"><span>Ціль</span><strong id="target-calories">2000 ккал</strong></div>
+              <div class="metric"><span>Виконання</span><strong id="target-percent">0%</strong></div>
+              <div class="metric"><span>Білки / Жири / Вуглеводи</span><strong id="macro-ratio">0 / 0 / 0 г</strong></div>
+            </div>
+            <progress id="target-progress" max="100" value="0"></progress>
+            <p id="empty-log" class="status">Записів за цю дату немає.</p>
+            <ul id="daily-list" class="daily-list"></ul>
+            <div class="controls">
+              <button id="clear-day" class="secondary" type="button">Очистити день</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="card">
+          <h2>5) Історія калорійності</h2>
+          <div class="metrics">
+            <div class="metric"><span>Середнє за 7 днів</span><strong id="weekly-average">0 ккал</strong></div>
+            <div class="metric"><span>Період історії</span><strong>Останні 30 днів</strong></div>
           </div>
-          <p id="model-status" class="status">Завантаження AI-моделі...</p>
-          <p class="status">Кнопка встановлення PWA з'явиться, коли браузер підтримає встановлення.</p>
-          <button id="install-button" class="secondary" hidden>Встановити застосунок</button>
-        </article>
+          <ul id="history-list" class="daily-list"></ul>
+        </section>
       </section>
 
-      <section class="grid">
-        <article class="card">
-          <h2>3) Результат AI-аналізу</h2>
-          <div id="prediction-chips" class="chips"></div>
-          <div class="metrics">
-            <div class="metric"><span>Страва</span><strong id="guessed-food">—</strong></div>
-            <div class="metric"><span>Впевненість</span><strong id="confidence">—</strong></div>
-            <div class="metric"><span>Калорії</span><strong id="calories">—</strong></div>
-            <div class="metric"><span>Білки</span><strong id="proteins">—</strong></div>
-            <div class="metric"><span>Жири</span><strong id="fats">—</strong></div>
-            <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
-          </div>
-          <div class="controls">
-            <button id="save-entry" disabled>Додати у щоденник</button>
-          </div>
-        </article>
-
-        <article class="card">
-          <h2>4) Щоденник (сьогодні)</h2>
-          <div class="metrics">
-            <div class="metric"><span>Спожито</span><strong id="total-calories">0 ккал</strong></div>
-            <div class="metric"><span>Ціль</span><strong id="target-calories">2200 ккал</strong></div>
-            <div class="metric"><span>Виконання</span><strong id="target-percent">0%</strong></div>
-            <div class="metric"><span>Білки / Жири / Вуглеводи</span><strong id="macro-ratio">0 / 0 / 0 г</strong></div>
-          </div>
-          <progress id="target-progress" max="100" value="0"></progress>
-          <p id="empty-log" class="status">Записів за сьогодні ще немає.</p>
-          <ul id="daily-list" class="daily-list"></ul>
-          <div class="controls">
-            <button id="clear-day" class="secondary">Очистити день</button>
-          </div>
-        </article>
-      </section>
-
-      <p class="footer">
-        MVP: оцінка КБЖВ виконується автоматично на базі AI-класифікації фото та внутрішньої харчової бази.
-      </p>
+      <p id="appMessage" class="footer">Система готова до роботи.</p>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
