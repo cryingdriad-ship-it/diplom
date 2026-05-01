@@ -362,10 +362,7 @@ def create_app() -> Flask:
 
     @app.post("/api/food/estimate")
     def estimate_food():
-        user_id, auth_error = auth_required()
-        if auth_error:
-            return auth_error
-
+        user_id = current_user_id()
         payload = request.get_json(silent=True) or {}
         query = (payload.get("query") or "").strip()
         grams = float(payload.get("grams") or 100)
@@ -385,6 +382,7 @@ def create_app() -> Flask:
                 "carbs": round(estimate.carbs, 1),
                 "source": estimate.source,
                 "userId": user_id,
+                "guestMode": not bool(user_id),
             }
         )
 

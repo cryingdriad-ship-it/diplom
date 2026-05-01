@@ -119,6 +119,10 @@ h2 {
   gap: 1rem;
 }
 
+.auth-actions {
+  margin-top: 0.9rem;
+}
+
 #image-preview {
   width: 100%;
   max-height: 360px;

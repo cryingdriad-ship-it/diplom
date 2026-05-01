@@ -18,6 +18,9 @@
       <section id="authCard" class="card">
         <h2>Авторизація</h2>
         <p class="status">Створіть акаунт або увійдіть, щоб зберігати дані в персональному щоденнику.</p>
+        <div class="controls">
+          <button id="guestModeButton" class="secondary" type="button">Увійти як гість</button>
+        </div>
         <div class="auth-grid">
           <form id="registerForm" class="card-inset">
             <h3>Реєстрація</h3>
@@ -41,6 +44,7 @@
             <p id="accountEmail" class="status">—</p>
           </div>
           <div class="controls">
+            <button id="switchToAccountButton" class="secondary hidden" type="button">Увійти в акаунт</button>
             <button id="logoutButton" class="secondary" type="button">Вийти</button>
             <button id="install-button" class="secondary" hidden type="button">Встановити застосунок</button>
           </div>

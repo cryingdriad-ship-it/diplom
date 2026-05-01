@@ -9,7 +9,9 @@ const registerPasswordEl = document.getElementById("registerPassword");
 const loginFormEl = document.getElementById("loginForm");
 const loginEmailEl = document.getElementById("loginEmail");
 const loginPasswordEl = document.getElementById("loginPassword");
+const continueGuestButtonEl = document.getElementById("continueGuestButton");
 const accountEmailEl = document.getElementById("accountEmail");
+const sessionModeBadgeEl = document.getElementById("sessionModeBadge");
 const logoutButtonEl = document.getElementById("logoutButton");
 
 const fileInputEl = document.getElementById("image-input");
@@ -47,6 +49,7 @@ const weekAverageEl = document.getElementById("weekly-average");
 const historyListEl = document.getElementById("history-list");
 
 const CALORIE_TARGETS = { loss: 1700, maintain: 2000, gain: 2400 };
+const GUEST_LOG_STORAGE_KEY = "myfitnesspal_guest_diary_v1";
 
 let model = null;
 let currentUser = null;
@@ -55,6 +58,8 @@ let currentAnalysis = null;
 let currentDayEntries = [];
 let currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 let deferredPrompt = null;
+let sessionMode = "anonymous";
+let guestDiary = [];
 
 function round(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -74,6 +79,29 @@ function setModelStatus(text, ok = false) {
   modelStatusEl.classList.toggle("ok", ok);
 }
 
+function readGuestDiary() {
+  try {
+    const raw = localStorage.getItem(GUEST_LOG_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeGuestDiary() {
+  localStorage.setItem(GUEST_LOG_STORAGE_KEY, JSON.stringify(guestDiary));
+}
+
+function isGuestMode() {
+  return sessionMode === "guest";
+}
+
+function isAuthenticatedMode() {
+  return sessionMode === "user" && Boolean(currentUser);
+}
+
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (options.body) {
@@ -91,8 +119,9 @@ async function api(path, options = {}) {
     data = {};
   }
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && sessionMode === "user") {
       currentUser = null;
+      sessionMode = "anonymous";
       renderAuthState();
     }
     throw new Error(data.error || "Помилка сервера");
@@ -101,15 +130,27 @@ async function api(path, options = {}) {
 }
 
 function renderAuthState() {
-  const authenticated = Boolean(currentUser);
-  authCardEl.classList.toggle("hidden", authenticated);
-  appCardEl.classList.toggle("hidden", !authenticated);
-  accountEmailEl.textContent = authenticated ? currentUser.email : "—";
+  const inApp = sessionMode !== "anonymous";
+  authCardEl.classList.toggle("hidden", inApp);
+  appCardEl.classList.toggle("hidden", !inApp);
+
+  if (sessionMode === "user" && currentUser) {
+    accountEmailEl.textContent = currentUser.email;
+    sessionModeBadgeEl.textContent = "Акаунт";
+  } else if (isGuestMode()) {
+    accountEmailEl.textContent = "Гість";
+    sessionModeBadgeEl.textContent = "Гостьовий режим";
+  } else {
+    accountEmailEl.textContent = "—";
+    sessionModeBadgeEl.textContent = "Не авторизовано";
+  }
+
   updateAnalyzeButtonState();
 }
 
 function updateAnalyzeButtonState() {
-  analyzeButtonEl.disabled = !model || !currentImageData || !currentUser;
+  const canUseApp = isAuthenticatedMode() || isGuestMode();
+  analyzeButtonEl.disabled = !model || !currentImageData || !canUseApp;
 }
 
 function setNutritionResult(result = null) {
@@ -180,17 +221,65 @@ function renderHistory(days, weeklyAverageCalories) {
   weekAverageEl.textContent = `${round(weeklyAverageCalories)} ккал`;
 }
 
+function calcTotals(entries) {
+  return {
+    calories: round(entries.reduce((sum, entry) => sum + Number(entry.calories || 0), 0)),
+    protein: round(entries.reduce((sum, entry) => sum + Number(entry.protein || 0), 0)),
+    fat: round(entries.reduce((sum, entry) => sum + Number(entry.fat || 0), 0)),
+    carbs: round(entries.reduce((sum, entry) => sum + Number(entry.carbs || 0), 0))
+  };
+}
+
 async function loadDayDiary(date) {
-  const data = await api(`/api/diary/day?date=${encodeURIComponent(date)}`);
-  currentDayEntries = data.entries || [];
-  currentDayTotals = data.totals || { calories: 0, protein: 0, fat: 0, carbs: 0 };
+  if (isAuthenticatedMode()) {
+    const data = await api(`/api/diary/day?date=${encodeURIComponent(date)}`);
+    currentDayEntries = data.entries || [];
+    currentDayTotals = data.totals || { calories: 0, protein: 0, fat: 0, carbs: 0 };
+  } else if (isGuestMode()) {
+    currentDayEntries = guestDiary.filter((entry) => entry.dateKey === date);
+    currentDayTotals = calcTotals(currentDayEntries);
+  } else {
+    currentDayEntries = [];
+    currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+  }
   renderDiary(currentDayEntries);
   renderTotals();
 }
 
 async function loadHistory(days = 30) {
-  const data = await api(`/api/diary/history?days=${days}`);
-  renderHistory(data.days || [], data.weeklyAverageCalories || 0);
+  if (isAuthenticatedMode()) {
+    const data = await api(`/api/diary/history?days=${days}`);
+    renderHistory(data.days || [], data.weeklyAverageCalories || 0);
+    return;
+  }
+
+  if (isGuestMode()) {
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(today.getDate() - (days - 1));
+    const byDate = {};
+    guestDiary.forEach((entry) => {
+      byDate[entry.dateKey] = (byDate[entry.dateKey] || 0) + Number(entry.calories || 0);
+    });
+
+    const dayList = [];
+    const weekly = [];
+    for (let i = 0; i < days; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      const key = date.toISOString().slice(0, 10);
+      const value = round(byDate[key] || 0);
+      dayList.push({ date: key, calories: value });
+      const recentThreshold = new Date(today);
+      recentThreshold.setDate(today.getDate() - 6);
+      if (date >= recentThreshold) weekly.push(value);
+    }
+    const weekAvg = weekly.length ? round(weekly.reduce((s, v) => s + v, 0) / weekly.length) : 0;
+    renderHistory(dayList, weekAvg);
+    return;
+  }
+
+  renderHistory([], 0);
 }
 
 async function handleImageSelect(file) {
@@ -221,7 +310,7 @@ async function loadModel() {
 }
 
 async function analyzeImage() {
-  if (!currentUser || !model || !currentImageData) {
+  if (!model || !currentImageData || !(isAuthenticatedMode() || isGuestMode())) {
     return;
   }
   analyzeButtonEl.disabled = true;
@@ -272,32 +361,56 @@ async function analyzeImage() {
 }
 
 async function saveEntry() {
-  if (!currentAnalysis || !currentUser) {
+  if (!currentAnalysis || !(isAuthenticatedMode() || isGuestMode())) {
     return;
   }
   const dateKey = entryDateEl.value || todayKey();
-  await api("/api/diary/entries", {
-    method: "POST",
-    body: JSON.stringify({ ...currentAnalysis, dateKey })
-  });
+
+  if (isAuthenticatedMode()) {
+    await api("/api/diary/entries", {
+      method: "POST",
+      body: JSON.stringify({ ...currentAnalysis, dateKey })
+    });
+  } else {
+    const entry = {
+      ...currentAnalysis,
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      dateKey,
+      createdAt: new Date().toISOString()
+    };
+    guestDiary.unshift(entry);
+    writeGuestDiary();
+  }
+
   saveEntryButtonEl.disabled = true;
   if (viewDateEl.value === dateKey) {
     await loadDayDiary(dateKey);
   }
   await loadHistory(30);
-  setMessage("Запис додано до щоденника.");
+  setMessage(isGuestMode() ? "Запис додано у гостьовий щоденник." : "Запис додано до щоденника.");
 }
 
 async function deleteEntry(entryId) {
-  await api(`/api/diary/entries/${entryId}`, { method: "DELETE" });
+  if (isAuthenticatedMode()) {
+    await api(`/api/diary/entries/${entryId}`, { method: "DELETE" });
+  } else if (isGuestMode()) {
+    guestDiary = guestDiary.filter((entry) => Number(entry.id) !== Number(entryId));
+    writeGuestDiary();
+  }
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
 }
 
 async function clearCurrentDay() {
-  const ids = currentDayEntries.map((entry) => entry.id);
-  for (const id of ids) {
-    await api(`/api/diary/entries/${id}`, { method: "DELETE" });
+  if (isAuthenticatedMode()) {
+    const ids = currentDayEntries.map((entry) => entry.id);
+    for (const id of ids) {
+      await api(`/api/diary/entries/${id}`, { method: "DELETE" });
+    }
+  } else if (isGuestMode()) {
+    const day = viewDateEl.value || todayKey();
+    guestDiary = guestDiary.filter((entry) => entry.dateKey !== day);
+    writeGuestDiary();
   }
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
@@ -312,6 +425,7 @@ async function submitRegister(event) {
     body: JSON.stringify({ email, password })
   });
   currentUser = user;
+  sessionMode = "user";
   renderAuthState();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
@@ -328,6 +442,7 @@ async function submitLogin(event) {
     body: JSON.stringify({ email, password })
   });
   currentUser = user;
+  sessionMode = "user";
   renderAuthState();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
@@ -335,9 +450,22 @@ async function submitLogin(event) {
   loginFormEl.reset();
 }
 
-async function logout() {
-  await api("/api/auth/logout", { method: "POST" });
+function enterGuestMode() {
   currentUser = null;
+  sessionMode = "guest";
+  guestDiary = readGuestDiary();
+  renderAuthState();
+  loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
+  loadHistory(30).catch((error) => setMessage(error.message, true));
+  setMessage("Увімкнено гостьовий режим. Дані зберігаються локально в браузері.");
+}
+
+async function logout() {
+  if (isAuthenticatedMode()) {
+    await api("/api/auth/logout", { method: "POST" });
+  }
+  currentUser = null;
+  sessionMode = "anonymous";
   renderAuthState();
   clearCurrentAnalysis();
   diaryListEl.innerHTML = "";
@@ -346,7 +474,7 @@ async function logout() {
   currentDayEntries = [];
   currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
   renderTotals();
-  setMessage("Ви вийшли з акаунту.");
+  setMessage("Сесію завершено.");
 }
 
 function initInstallPrompt() {
@@ -375,6 +503,7 @@ function registerServiceWorker() {
 async function checkAuth() {
   const data = await api("/api/auth/me");
   currentUser = data.authenticated ? data.user : null;
+  sessionMode = currentUser ? "user" : "anonymous";
   renderAuthState();
   if (currentUser) {
     await loadDayDiary(viewDateEl.value || todayKey());
@@ -389,6 +518,7 @@ function wireEvents() {
   loginFormEl.addEventListener("submit", (event) => {
     submitLogin(event).catch((error) => setMessage(error.message, true));
   });
+  continueGuestButtonEl.addEventListener("click", enterGuestMode);
   logoutButtonEl.addEventListener("click", () => {
     logout().catch((error) => setMessage(error.message, true));
   });
