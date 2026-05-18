@@ -1,4 +1,4 @@
-const CACHE_NAME = "myfitnesspal-ai-cache-v2";
+const CACHE_NAME = "myfitnesspal-ai-cache-v3";
 const ASSETS = [
   "/",
   "/index.html",
@@ -30,6 +30,26 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (event.request.url.includes("/api/")) return;
+
+  const requestUrl = new URL(event.request.url);
+  const isAppShellAsset =
+    event.request.mode === "navigate" ||
+    requestUrl.pathname.endsWith("/app.js") ||
+    requestUrl.pathname.endsWith("/styles.css") ||
+    requestUrl.pathname.endsWith("/index.html");
+
+  if (isAppShellAsset) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/index.html")))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

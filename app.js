@@ -1,56 +1,67 @@
-const authCardEl = document.getElementById("authCard");
-const appCardEl = document.getElementById("appCard");
-const appMessageEl = document.getElementById("appMessage");
-const modelStatusEl = document.getElementById("model-status");
+function byId(id) {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`UI element with id "${id}" was not found.`);
+  }
+  return element;
+}
 
-const registerFormEl = document.getElementById("registerForm");
-const registerEmailEl = document.getElementById("registerEmail");
-const registerPasswordEl = document.getElementById("registerPassword");
-const loginFormEl = document.getElementById("loginForm");
-const loginEmailEl = document.getElementById("loginEmail");
-const loginPasswordEl = document.getElementById("loginPassword");
-const continueGuestButtonEl = document.getElementById("guestModeButton");
-const accountEmailEl = document.getElementById("accountEmail");
-const sessionModeBadgeEl = document.getElementById("sessionModeBadge");
-const logoutButtonEl = document.getElementById("logoutButton");
-const switchToAccountButtonEl = document.getElementById("switchToAccountButton");
+const landingViewEl = byId("landingView");
+const authCardEl = byId("authCard");
+const dashboardViewEl = byId("dashboardView");
+const appMessageEl = byId("appMessage");
+const modelStatusEl = byId("model-status");
+const navSignInButtonEl = byId("navSignInButton");
+const navGetStartedButtonEl = byId("navGetStartedButton");
 
-const fileInputEl = document.getElementById("image-input");
-const imagePreviewEl = document.getElementById("image-preview");
-const analyzeButtonEl = document.getElementById("analyze-button");
-const clearButtonEl = document.getElementById("clear-button");
-const gramsInputEl = document.getElementById("grams-input");
-const entryDateEl = document.getElementById("entry-date");
-const viewDateEl = document.getElementById("view-date");
-const refreshDayEl = document.getElementById("refresh-day");
-const goalSelectEl = document.getElementById("goal-select");
-const installButtonEl = document.getElementById("install-button");
+const registerFormEl = byId("registerForm");
+const registerEmailEl = byId("registerEmail");
+const registerPasswordEl = byId("registerPassword");
+const loginFormEl = byId("loginForm");
+const loginEmailEl = byId("loginEmail");
+const loginPasswordEl = byId("loginPassword");
+const guestModeButtonEl = byId("guestModeButton");
+const accountEmailEl = byId("accountEmail");
+const sessionModeBadgeEl = byId("sessionModeBadge");
+const logoutButtonEl = byId("logoutButton");
+const switchToAccountButtonEl = byId("switchToAccountButton");
 
-const chipsEl = document.getElementById("prediction-chips");
-const guessedFoodEl = document.getElementById("guessed-food");
-const sourceEl = document.getElementById("nutrition-source");
-const gramsEl = document.getElementById("detected-grams");
-const caloriesEl = document.getElementById("calories");
-const proteinsEl = document.getElementById("proteins");
-const fatsEl = document.getElementById("fats");
-const carbsEl = document.getElementById("carbs");
-const confidenceEl = document.getElementById("confidence");
-const saveEntryButtonEl = document.getElementById("save-entry");
+const fileInputEl = byId("image-input");
+const imagePreviewEl = byId("image-preview");
+const analyzeButtonEl = byId("analyze-button");
+const clearButtonEl = byId("clear-button");
+const gramsInputEl = byId("grams-input");
+const entryDateEl = byId("entry-date");
+const viewDateEl = byId("view-date");
+const refreshDayEl = byId("refresh-day");
+const goalSelectEl = byId("goal-select");
+const installButtonEl = byId("install-button");
 
-const totalCaloriesEl = document.getElementById("total-calories");
-const targetCaloriesEl = document.getElementById("target-calories");
-const targetPercentEl = document.getElementById("target-percent");
-const targetProgressEl = document.getElementById("target-progress");
-const macroRatioEl = document.getElementById("macro-ratio");
-const emptyLogEl = document.getElementById("empty-log");
-const diaryListEl = document.getElementById("daily-list");
-const clearDayButtonEl = document.getElementById("clear-day");
+const chipsEl = byId("prediction-chips");
+const guessedFoodEl = byId("guessed-food");
+const sourceEl = byId("nutrition-source");
+const gramsEl = byId("detected-grams");
+const caloriesEl = byId("calories");
+const proteinsEl = byId("proteins");
+const fatsEl = byId("fats");
+const carbsEl = byId("carbs");
+const confidenceEl = byId("confidence");
+const saveEntryButtonEl = byId("save-entry");
 
-const weekAverageEl = document.getElementById("weekly-average");
-const historyListEl = document.getElementById("history-list");
+const totalCaloriesEl = byId("total-calories");
+const targetCaloriesEl = byId("target-calories");
+const targetPercentEl = byId("target-percent");
+const targetProgressEl = byId("target-progress");
+const macroRatioEl = byId("macro-ratio");
+const emptyLogEl = byId("empty-log");
+const diaryListEl = byId("daily-list");
+const clearDayButtonEl = byId("clear-day");
+
+const weekAverageEl = byId("weekly-average");
+const historyListEl = byId("history-list");
 
 const CALORIE_TARGETS = { loss: 1700, maintain: 2000, gain: 2400 };
-const GUEST_LOG_STORAGE_KEY = "myfitnesspal_guest_diary_v1";
+const GUEST_LOG_STORAGE_KEY = "myfitnesspal_guest_entries_v1";
 
 let model = null;
 let currentUser = null;
@@ -59,7 +70,7 @@ let currentAnalysis = null;
 let currentDayEntries = [];
 let currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 let deferredPrompt = null;
-let sessionMode = "anonymous";
+let sessionMode = "anonymous"; // anonymous | guest | user
 let guestDiary = [];
 
 function round(value) {
@@ -103,47 +114,52 @@ function isAuthenticatedMode() {
   return sessionMode === "user" && Boolean(currentUser);
 }
 
+function canUseDashboard() {
+  return isGuestMode() || isAuthenticatedMode();
+}
+
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
-  if (options.body) {
-    headers["Content-Type"] = "application/json";
+  if (options.body) headers["Content-Type"] = "application/json";
+
+  let response;
+  try {
+    response = await fetch(path, { credentials: "include", ...options, headers });
+  } catch {
+    throw new Error("Не вдалося підключитися до сервера. Запустіть backend.py і оновіть сторінку.");
   }
-  const response = await fetch(path, {
-    credentials: "include",
-    ...options,
-    headers
-  });
+
   let data = {};
   try {
     data = await response.json();
   } catch {
     data = {};
   }
+
   if (!response.ok) {
     if (response.status === 401 && sessionMode === "user") {
       currentUser = null;
       sessionMode = "anonymous";
-      renderAuthState();
+      renderView();
     }
-    throw new Error(data.error || "Помилка сервера");
+    throw new Error(data.error || "Сервер повернув помилку.");
   }
   return data;
 }
 
-function renderAuthState() {
-  const inApp = sessionMode !== "anonymous";
-  authCardEl.classList.toggle("hidden", inApp);
-  appCardEl.classList.toggle("hidden", !inApp);
-  if (switchToAccountButtonEl) {
-    switchToAccountButtonEl.classList.toggle("hidden", !isGuestMode());
-  }
+function renderView() {
+  const inDashboard = canUseDashboard();
+  landingViewEl.classList.toggle("hidden", inDashboard);
+  dashboardViewEl.classList.toggle("hidden", !inDashboard);
+  authCardEl.classList.toggle("hidden", false);
+  switchToAccountButtonEl.classList.toggle("hidden", !isGuestMode());
 
-  if (sessionMode === "user" && currentUser) {
+  if (isAuthenticatedMode()) {
     accountEmailEl.textContent = currentUser.email;
-    sessionModeBadgeEl.textContent = "Акаунт";
+    sessionModeBadgeEl.textContent = "Режим: акаунт";
   } else if (isGuestMode()) {
     accountEmailEl.textContent = "Гість";
-    sessionModeBadgeEl.textContent = "Гостьовий режим";
+    sessionModeBadgeEl.textContent = "Режим: гість";
   } else {
     accountEmailEl.textContent = "—";
     sessionModeBadgeEl.textContent = "Не авторизовано";
@@ -153,8 +169,7 @@ function renderAuthState() {
 }
 
 function updateAnalyzeButtonState() {
-  const canUseApp = isAuthenticatedMode() || isGuestMode();
-  analyzeButtonEl.disabled = !model || !currentImageData || !canUseApp;
+  analyzeButtonEl.disabled = !model || !currentImageData || !canUseDashboard();
 }
 
 function setNutritionResult(result = null) {
@@ -178,6 +193,15 @@ function clearCurrentAnalysis() {
   imagePreviewEl.removeAttribute("src");
   fileInputEl.value = "";
   updateAnalyzeButtonState();
+}
+
+function calcTotals(entries) {
+  return {
+    calories: round(entries.reduce((sum, entry) => sum + Number(entry.calories || 0), 0)),
+    protein: round(entries.reduce((sum, entry) => sum + Number(entry.protein || 0), 0)),
+    fat: round(entries.reduce((sum, entry) => sum + Number(entry.fat || 0), 0)),
+    carbs: round(entries.reduce((sum, entry) => sum + Number(entry.carbs || 0), 0))
+  };
 }
 
 function renderTotals() {
@@ -225,15 +249,6 @@ function renderHistory(days, weeklyAverageCalories) {
   weekAverageEl.textContent = `${round(weeklyAverageCalories)} ккал`;
 }
 
-function calcTotals(entries) {
-  return {
-    calories: round(entries.reduce((sum, entry) => sum + Number(entry.calories || 0), 0)),
-    protein: round(entries.reduce((sum, entry) => sum + Number(entry.protein || 0), 0)),
-    fat: round(entries.reduce((sum, entry) => sum + Number(entry.fat || 0), 0)),
-    carbs: round(entries.reduce((sum, entry) => sum + Number(entry.carbs || 0), 0))
-  };
-}
-
 async function loadDayDiary(date) {
   if (isAuthenticatedMode()) {
     const data = await api(`/api/diary/day?date=${encodeURIComponent(date)}`);
@@ -262,24 +277,26 @@ async function loadHistory(days = 30) {
     const start = new Date(today);
     start.setDate(today.getDate() - (days - 1));
     const byDate = {};
+
     guestDiary.forEach((entry) => {
       byDate[entry.dateKey] = (byDate[entry.dateKey] || 0) + Number(entry.calories || 0);
     });
 
-    const dayList = [];
+    const daysList = [];
     const weekly = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
       const key = date.toISOString().slice(0, 10);
       const value = round(byDate[key] || 0);
-      dayList.push({ date: key, calories: value });
-      const recentThreshold = new Date(today);
-      recentThreshold.setDate(today.getDate() - 6);
-      if (date >= recentThreshold) weekly.push(value);
+      daysList.push({ date: key, calories: value });
+      const weeklyThreshold = new Date(today);
+      weeklyThreshold.setDate(today.getDate() - 6);
+      if (date >= weeklyThreshold) weekly.push(value);
     }
-    const weekAvg = weekly.length ? round(weekly.reduce((s, v) => s + v, 0) / weekly.length) : 0;
-    renderHistory(dayList, weekAvg);
+
+    const weeklyAverageCalories = weekly.length ? round(weekly.reduce((acc, item) => acc + item, 0) / weekly.length) : 0;
+    renderHistory(daysList, weeklyAverageCalories);
     return;
   }
 
@@ -301,45 +318,54 @@ async function loadModel() {
   try {
     setModelStatus("Завантаження AI-моделі...");
     if (typeof mobilenet === "undefined") {
-      throw new Error("MobileNet недоступний");
+      throw new Error("MobileNet недоступний.");
     }
     model = await mobilenet.load({ version: 2, alpha: 1.0 });
-    setModelStatus("Модель готова до аналізу", true);
+    setModelStatus("Модель готова до аналізу.", true);
     updateAnalyzeButtonState();
   } catch (error) {
-    setModelStatus("Помилка завантаження AI-моделі");
+    setModelStatus("Помилка завантаження AI-моделі.");
     modelStatusEl.classList.add("error");
     setMessage(error.message, true);
   }
 }
 
+function renderPredictionChips(labels) {
+  chipsEl.innerHTML = "";
+  labels.forEach((label) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = label;
+    chipsEl.appendChild(chip);
+  });
+}
+
 async function analyzeImage() {
-  if (!model || !currentImageData || !(isAuthenticatedMode() || isGuestMode())) {
-    return;
-  }
+  if (!model || !currentImageData || !canUseDashboard()) return;
+
   analyzeButtonEl.disabled = true;
   analyzeButtonEl.textContent = "Аналіз...";
-  setMessage("Виконується AI-аналіз та запит до food API...");
+  setMessage("Виконується AI-розпізнавання...");
 
   try {
     const predictions = await model.classify(imagePreviewEl, 3);
-    const top = predictions[0];
-    if (!top) {
-      throw new Error("AI не розпізнав страву");
-    }
+    const fallbackLabel = predictions[0]?.className || "";
 
-    chipsEl.innerHTML = "";
-    predictions.forEach((p) => {
-      const chip = document.createElement("span");
-      chip.className = "chip";
-      chip.textContent = `${p.className} — ${round(p.probability * 100)}%`;
-      chipsEl.appendChild(chip);
+    const recognition = await api("/api/food/recognize", {
+      method: "POST",
+      body: JSON.stringify({
+        imageData: currentImageData,
+        fallbackLabel
+      })
     });
+
+    const labels = recognition.labels && recognition.labels.length ? recognition.labels : [fallbackLabel || "unknown food"];
+    renderPredictionChips(labels.map((l) => `${l}`));
 
     const grams = Math.max(1, Number(gramsInputEl.value || 250));
     const estimate = await api("/api/food/estimate", {
       method: "POST",
-      body: JSON.stringify({ query: top.className, grams })
+      body: JSON.stringify({ query: labels[0], grams })
     });
 
     currentAnalysis = {
@@ -349,15 +375,16 @@ async function analyzeImage() {
       protein: estimate.protein,
       fat: estimate.fat,
       carbs: estimate.carbs,
-      source: estimate.source,
-      confidence: top.probability
+      source: `${estimate.source} / ${recognition.provider || "MobileNet"}`,
+      confidence: predictions[0]?.probability || 0
     };
     setNutritionResult(currentAnalysis);
     saveEntryButtonEl.disabled = false;
-    setMessage("Аналіз завершено. Можна зберігати у щоденник.");
+    setMessage("Аналіз завершено. Додайте запис у щоденник.");
   } catch (error) {
+    currentAnalysis = null;
     setNutritionResult(null);
-    setMessage(error.message || "Помилка аналізу", true);
+    setMessage(error.message || "Помилка аналізу.", true);
   } finally {
     analyzeButtonEl.textContent = "AI-аналіз";
     updateAnalyzeButtonState();
@@ -365,40 +392,35 @@ async function analyzeImage() {
 }
 
 async function saveEntry() {
-  if (!currentAnalysis || !(isAuthenticatedMode() || isGuestMode())) {
-    return;
-  }
-  const dateKey = entryDateEl.value || todayKey();
+  if (!currentAnalysis || !canUseDashboard()) return;
 
+  const dateKey = entryDateEl.value || todayKey();
   if (isAuthenticatedMode()) {
     await api("/api/diary/entries", {
       method: "POST",
       body: JSON.stringify({ ...currentAnalysis, dateKey })
     });
   } else {
-    const entry = {
+    guestDiary.unshift({
       ...currentAnalysis,
-      id: Date.now() + Math.floor(Math.random() * 1000),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       dateKey,
       createdAt: new Date().toISOString()
-    };
-    guestDiary.unshift(entry);
+    });
     writeGuestDiary();
   }
 
   saveEntryButtonEl.disabled = true;
-  if (viewDateEl.value === dateKey) {
-    await loadDayDiary(dateKey);
-  }
+  await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  setMessage(isGuestMode() ? "Запис додано у гостьовий щоденник." : "Запис додано до щоденника.");
+  setMessage(isGuestMode() ? "Запис додано в гостьовий щоденник." : "Запис додано в акаунт.");
 }
 
 async function deleteEntry(entryId) {
   if (isAuthenticatedMode()) {
     await api(`/api/diary/entries/${entryId}`, { method: "DELETE" });
-  } else if (isGuestMode()) {
-    guestDiary = guestDiary.filter((entry) => Number(entry.id) !== Number(entryId));
+  } else {
+    guestDiary = guestDiary.filter((entry) => String(entry.id) !== String(entryId));
     writeGuestDiary();
   }
   await loadDayDiary(viewDateEl.value || todayKey());
@@ -406,79 +428,87 @@ async function deleteEntry(entryId) {
 }
 
 async function clearCurrentDay() {
+  const selectedDate = viewDateEl.value || todayKey();
   if (isAuthenticatedMode()) {
     const ids = currentDayEntries.map((entry) => entry.id);
     for (const id of ids) {
       await api(`/api/diary/entries/${id}`, { method: "DELETE" });
     }
-  } else if (isGuestMode()) {
-    const day = viewDateEl.value || todayKey();
-    guestDiary = guestDiary.filter((entry) => entry.dateKey !== day);
+  } else {
+    guestDiary = guestDiary.filter((entry) => entry.dateKey !== selectedDate);
     writeGuestDiary();
   }
-  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadDayDiary(selectedDate);
   await loadHistory(30);
 }
 
 async function submitRegister(event) {
   event.preventDefault();
-  const email = registerEmailEl.value.trim();
+  const email = registerEmailEl.value.trim().toLowerCase();
   const password = registerPasswordEl.value;
+  if (!email || password.length < 6) {
+    setMessage("Перевірте email і пароль (мінімум 6 символів).", true);
+    return;
+  }
+
   const user = await api("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
   currentUser = user;
   sessionMode = "user";
-  renderAuthState();
+  renderView();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  setMessage("Акаунт створено, ви увійшли в систему.");
   registerFormEl.reset();
+  setMessage("Реєстрація успішна. Ви у робочому екрані.");
 }
 
 async function submitLogin(event) {
   event.preventDefault();
-  const email = loginEmailEl.value.trim();
+  const email = loginEmailEl.value.trim().toLowerCase();
   const password = loginPasswordEl.value;
+  if (!email || !password) {
+    setMessage("Вкажіть email і пароль.", true);
+    return;
+  }
+
   const user = await api("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
   currentUser = user;
   sessionMode = "user";
-  renderAuthState();
+  renderView();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  setMessage("Успішний вхід.");
   loginFormEl.reset();
+  setMessage("Вхід успішний. Ви у робочому екрані.");
 }
 
 function enterGuestMode() {
-  currentUser = null;
   sessionMode = "guest";
+  currentUser = null;
   guestDiary = readGuestDiary();
-  renderAuthState();
+  renderView();
   loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
   loadHistory(30).catch((error) => setMessage(error.message, true));
-  setMessage("Увімкнено гостьовий режим. Дані зберігаються локально в браузері.");
+  setMessage("Увімкнено гостьовий режим.");
 }
 
 async function logout() {
   if (isAuthenticatedMode()) {
     await api("/api/auth/logout", { method: "POST" });
   }
-  currentUser = null;
   sessionMode = "anonymous";
-  renderAuthState();
-  clearCurrentAnalysis();
-  diaryListEl.innerHTML = "";
-  historyListEl.innerHTML = "";
-  weekAverageEl.textContent = "0 ккал";
+  currentUser = null;
   currentDayEntries = [];
   currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+  renderView();
+  renderDiary([]);
+  renderHistory([], 0);
   renderTotals();
-  setMessage("Сесію завершено.");
+  setMessage("Ви повернулися на екран входу.");
 }
 
 function initInstallPrompt() {
@@ -487,10 +517,9 @@ function initInstallPrompt() {
     deferredPrompt = event;
     installButtonEl.hidden = false;
   });
+
   installButtonEl.addEventListener("click", async () => {
-    if (!deferredPrompt) {
-      return;
-    }
+    if (!deferredPrompt) return;
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     deferredPrompt = null;
@@ -505,51 +534,66 @@ function registerServiceWorker() {
 }
 
 async function checkAuth() {
-  const data = await api("/api/auth/me");
-  currentUser = data.authenticated ? data.user : null;
-  sessionMode = currentUser ? "user" : "anonymous";
-  renderAuthState();
-  if (currentUser) {
+  try {
+    const data = await api("/api/auth/me");
+    currentUser = data.authenticated ? data.user : null;
+    sessionMode = currentUser ? "user" : "anonymous";
+  } catch {
+    currentUser = null;
+    sessionMode = "anonymous";
+  }
+  renderView();
+  if (isAuthenticatedMode()) {
     await loadDayDiary(viewDateEl.value || todayKey());
     await loadHistory(30);
   }
 }
 
 function wireEvents() {
+  navSignInButtonEl.addEventListener("click", () => {
+    landingViewEl.classList.remove("hidden");
+    authCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
+  navGetStartedButtonEl.addEventListener("click", () => {
+    landingViewEl.classList.remove("hidden");
+    authCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
   registerFormEl.addEventListener("submit", (event) => {
     submitRegister(event).catch((error) => setMessage(error.message, true));
   });
+
   loginFormEl.addEventListener("submit", (event) => {
     submitLogin(event).catch((error) => setMessage(error.message, true));
   });
-  if (continueGuestButtonEl) {
-    continueGuestButtonEl.addEventListener("click", enterGuestMode);
-  }
-  if (switchToAccountButtonEl) {
-    switchToAccountButtonEl.addEventListener("click", () => {
-      sessionMode = "anonymous";
-      renderAuthState();
-      setMessage("Увійдіть у свій акаунт або створіть новий.");
-    });
-  }
+
+  guestModeButtonEl.addEventListener("click", enterGuestMode);
+
+  switchToAccountButtonEl.addEventListener("click", () => {
+    sessionMode = "anonymous";
+    renderView();
+    setMessage("Увійдіть у свій акаунт або створіть новий.");
+    authCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
   logoutButtonEl.addEventListener("click", () => {
     logout().catch((error) => setMessage(error.message, true));
   });
 
   fileInputEl.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
-    if (file) {
-      handleImageSelect(file);
-    }
+    if (file) handleImageSelect(file);
   });
+
   analyzeButtonEl.addEventListener("click", () => {
     analyzeImage().catch((error) => setMessage(error.message, true));
   });
+
   clearButtonEl.addEventListener("click", clearCurrentAnalysis);
   saveEntryButtonEl.addEventListener("click", () => {
     saveEntry().catch((error) => setMessage(error.message, true));
   });
-
   clearDayButtonEl.addEventListener("click", () => {
     clearCurrentDay().catch((error) => setMessage(error.message, true));
   });
@@ -557,18 +601,14 @@ function wireEvents() {
     loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
   });
   viewDateEl.addEventListener("change", () => {
-    const date = viewDateEl.value || todayKey();
-    loadDayDiary(date).catch((error) => setMessage(error.message, true));
+    loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
   });
   goalSelectEl.addEventListener("change", renderTotals);
 
   diaryListEl.addEventListener("click", (event) => {
     const target = event.target;
     if (target instanceof HTMLElement && target.classList.contains("remove")) {
-      const id = Number(target.dataset.id);
-      if (id) {
-        deleteEntry(id).catch((error) => setMessage(error.message, true));
-      }
+      deleteEntry(target.dataset.id).catch((error) => setMessage(error.message, true));
     }
   });
 }
@@ -584,6 +624,9 @@ async function init() {
   registerServiceWorker();
   await checkAuth();
   await loadModel();
+  setMessage("Готово. Увійдіть, зареєструйтесь або продовжуйте як гість.");
 }
 
-init().catch((error) => setMessage(error.message || "Помилка ініціалізації", true));
+init().catch((error) => {
+  setMessage(error.message || "Критична помилка ініціалізації.", true);
+});

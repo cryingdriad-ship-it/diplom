@@ -1,5 +1,38 @@
 # MyFitnessPal — Резюме бізнес-плану
 
+## Технічний стан MVP (вебзастосунок)
+
+### Запуск
+
+```bash
+python3 backend.py
+```
+
+Після запуску відкрийте: `http://127.0.0.1:4173`
+
+### Де зберігаються акаунти (логін/пароль)
+
+- База даних: **SQLite**
+- Файл за замовчуванням: **`/workspace/myfitnesspal.db`**
+- Таблиця користувачів: `users`
+- Паролі не зберігаються у відкритому вигляді (salt + SHA-256 hash).
+
+Можна перевизначити шлях до БД через змінну середовища:
+
+```bash
+export MYFITNESSPAL_DB_PATH="/workspace/myfitnesspal.db"
+```
+
+### Реальні джерела AI/food-даних
+
+- **Розпізнавання їжі (AI):**
+  - Clarifai Food Model (якщо задано `CLARIFAI_PAT`)
+  - fallback: MobileNet
+- **Харчова база/нутрієнти:**
+  - USDA FoodData Central (`USDA_API_KEY`)
+  - FatSecret (`FATSECRET_CLIENT_ID`, `FATSECRET_CLIENT_SECRET`)
+  - OpenFoodFacts (безкоштовний fallback)
+
 > **Строго конфіденційно**
 
 ## 1) Паспорт проєкту

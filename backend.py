@@ -1,6 +1,8 @@
+import base64
 import datetime as dt
 import hashlib
 import os
+import re
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -11,11 +13,15 @@ from flask import Flask, jsonify, request, session
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "myfitnesspal.db")
+DB_PATH = os.getenv("MYFITNESSPAL_DB_PATH", os.path.join(BASE_DIR, "myfitnesspal.db"))
 
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
 FATSECRET_CLIENT_ID = os.getenv("FATSECRET_CLIENT_ID", "").strip()
 FATSECRET_CLIENT_SECRET = os.getenv("FATSECRET_CLIENT_SECRET", "").strip()
+CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
+CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
+CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
+CLARIFAI_MODEL_ID = os.getenv("CLARIFAI_FOOD_MODEL_ID", "food-item-recognition").strip()
 
 DEFAULT_CALORIES_BY_LABEL = {
     "salad": ("Mixed salad", 120, 4, 7, 10),
@@ -114,6 +120,86 @@ class FoodResult:
     fat: float
     carbs: float
     source: str
+
+
+def extract_image_bytes(data_url: str) -> Optional[bytes]:
+    if not data_url:
+        return None
+    match = re.match(r"^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$", data_url.strip())
+    if not match:
+        return None
+    try:
+        return base64.b64decode(match.group(1), validate=True)
+    except Exception:
+        return None
+
+
+def normalize_label(label: str) -> str:
+    return re.sub(r"\s+", " ", (label or "").replace("_", " ").strip())
+
+
+def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
+    if not CLARIFAI_PAT:
+        return []
+    try:
+        payload = {
+            "user_app_id": {"user_id": CLARIFAI_USER_ID, "app_id": CLARIFAI_APP_ID},
+            "inputs": [{"data": {"image": {"base64": base64.b64encode(image_bytes).decode("utf-8")}}}],
+        }
+        response = requests.post(
+            f"https://api.clarifai.com/v2/models/{CLARIFAI_MODEL_ID}/outputs",
+            headers={
+                "Authorization": f"Key {CLARIFAI_PAT}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=10,
+        )
+        response.raise_for_status()
+        outputs = response.json().get("outputs", [])
+        if not outputs:
+            return []
+        concepts = outputs[0].get("data", {}).get("concepts", [])
+        labels = []
+        for concept in concepts[:5]:
+            name = normalize_label(concept.get("name", ""))
+            if name:
+                labels.append(name)
+        return labels
+    except requests.RequestException:
+        return []
+
+
+def fetch_openfoodfacts_food(query: str) -> Optional[FoodResult]:
+    try:
+        response = requests.get(
+            "https://world.openfoodfacts.org/cgi/search.pl",
+            params={"search_terms": query, "search_simple": 1, "json": 1, "page_size": 1},
+            timeout=8,
+        )
+        response.raise_for_status()
+        products = response.json().get("products", [])
+        if not products:
+            return None
+        product = products[0]
+        nutriments = product.get("nutriments", {})
+        calories = float(nutriments.get("energy-kcal_100g", 0) or 0)
+        protein = float(nutriments.get("proteins_100g", 0) or 0)
+        fat = float(nutriments.get("fat_100g", 0) or 0)
+        carbs = float(nutriments.get("carbohydrates_100g", 0) or 0)
+        if calories <= 0:
+            return None
+        return FoodResult(
+            name=product.get("product_name") or query,
+            grams=100.0,
+            calories=calories,
+            protein=protein,
+            fat=fat,
+            carbs=carbs,
+            source="OpenFoodFacts",
+        )
+    except requests.RequestException:
+        return None
 
 
 def extract_usda_nutrients(food_item: dict) -> Optional[FoodResult]:
@@ -272,6 +358,10 @@ def lookup_food(query: str) -> FoodResult:
     if fatsecret:
         return fatsecret
 
+    off = fetch_openfoodfacts_food(query)
+    if off:
+        return off
+
     return fallback_food(query)
 
 
@@ -360,12 +450,51 @@ def create_app() -> Flask:
             return jsonify({"authenticated": False})
         return jsonify({"authenticated": True, "user": {"id": int(user["id"]), "email": user["email"]}})
 
+    @app.get("/api/meta")
+    def meta():
+        return jsonify(
+            {
+                "databasePath": DB_PATH,
+                "recognitionProviders": {
+                    "clarifaiConfigured": bool(CLARIFAI_PAT),
+                    "fallbackMobileNet": True,
+                },
+                "nutritionProviders": {
+                    "usdaConfigured": bool(USDA_API_KEY),
+                    "fatSecretConfigured": bool(FATSECRET_CLIENT_ID and FATSECRET_CLIENT_SECRET),
+                    "openFoodFactsConfigured": True,
+                },
+            }
+        )
+
+    @app.post("/api/food/recognize")
+    def recognize_food():
+        payload = request.get_json(silent=True) or {}
+        fallback_label = normalize_label(payload.get("fallbackLabel", ""))
+        image_data = payload.get("imageData", "")
+        labels = []
+        provider = "MobileNet fallback"
+
+        image_bytes = extract_image_bytes(image_data)
+        if image_bytes:
+            labels = fetch_clarifai_labels(image_bytes)
+            if labels:
+                provider = "Clarifai food model"
+
+        if not labels and fallback_label:
+            labels = [fallback_label]
+
+        if not labels:
+            labels = ["unknown food"]
+
+        return jsonify({"labels": labels, "provider": provider})
+
     @app.post("/api/food/estimate")
     def estimate_food():
         user_id = current_user_id()
         payload = request.get_json(silent=True) or {}
         query = (payload.get("query") or "").strip()
-        grams = float(payload.get("grams") or 100)
+        grams = max(1.0, parse_float(payload.get("grams") or 100))
         if not query:
             return jsonify({"error": "Не вказано назву/опис страви"}), 400
 
@@ -394,11 +523,11 @@ def create_app() -> Flask:
 
         payload = request.get_json(silent=True) or {}
         food_name = (payload.get("foodName") or "").strip()
-        grams = float(payload.get("grams") or 0)
-        calories = float(payload.get("calories") or 0)
-        protein = float(payload.get("protein") or 0)
-        fat = float(payload.get("fat") or 0)
-        carbs = float(payload.get("carbs") or 0)
+        grams = parse_float(payload.get("grams") or 0)
+        calories = parse_float(payload.get("calories") or 0)
+        protein = parse_float(payload.get("protein") or 0)
+        fat = parse_float(payload.get("fat") or 0)
+        carbs = parse_float(payload.get("carbs") or 0)
         source = (payload.get("source") or "Unknown").strip() or "Unknown"
         date_key = (payload.get("dateKey") or dt.date.today().isoformat()).strip()
 
