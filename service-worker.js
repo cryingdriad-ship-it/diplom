@@ -2,6 +2,7 @@ const CACHE_NAME = "myfitnesspal-ai-cache-v3";
 const ASSETS = [
   "/",
   "/index.html",
+  "/firebase-config.js",
   "/styles.css",
   "/app.js",
   "/manifest.webmanifest",

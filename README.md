@@ -41,6 +41,9 @@ export MYFITNESSPAL_DB_PATH="/workspace/myfitnesspal.db"
 
 На клієнті потрібно задати:
 
+1. Відкрийте файл `firebase-config.js`.
+2. Заповніть поля:
+
 ```js
 window.MYFITNESSPAL_FIREBASE_CONFIG = {
   apiKey: "YOUR_API_KEY",
