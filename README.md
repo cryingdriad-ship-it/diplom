@@ -33,6 +33,31 @@ export MYFITNESSPAL_DB_PATH="/workspace/myfitnesspal.db"
   - FatSecret (`FATSECRET_CLIENT_ID`, `FATSECRET_CLIENT_SECRET`)
   - OpenFoodFacts (безкоштовний fallback)
 
+### Firebase Authentication
+
+Фронтенд використовує Firebase Auth (email/password), а бекенд приймає Firebase ID Token через:
+
+- `POST /api/auth/firebase`
+
+На клієнті потрібно задати:
+
+```js
+window.MYFITNESSPAL_FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  appId: "YOUR_APP_ID"
+};
+```
+
+На сервері потрібно задати:
+
+```bash
+export FIREBASE_PROJECT_ID="YOUR_PROJECT_ID"
+```
+
+Після завантаження фото є окрема кнопка **«Запустити процес»**, яка стартує AI-аналіз.
+
 > **Строго конфіденційно**
 
 ## 1) Паспорт проєкту

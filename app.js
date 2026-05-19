@@ -1,10 +1,10 @@
 function byId(id) {
   const element = document.getElementById(id);
-  if (!element) {
-    throw new Error(`UI element with id "${id}" was not found.`);
-  }
+  if (!element) throw new Error(`UI element with id "${id}" not found`);
   return element;
 }
+
+const FIREBASE_CONFIG = window.MYFITNESSPAL_FIREBASE_CONFIG || null;
 
 const landingViewEl = byId("landingView");
 const authCardEl = byId("authCard");
@@ -27,7 +27,9 @@ const logoutButtonEl = byId("logoutButton");
 const switchToAccountButtonEl = byId("switchToAccountButton");
 
 const fileInputEl = byId("image-input");
+const dashboardPhotoInputEl = byId("dashboard-photo-input");
 const imagePreviewEl = byId("image-preview");
+const startProcessButtonEl = byId("startProcessButton");
 const analyzeButtonEl = byId("analyze-button");
 const clearButtonEl = byId("clear-button");
 const gramsInputEl = byId("grams-input");
@@ -72,6 +74,10 @@ let currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 let deferredPrompt = null;
 let sessionMode = "anonymous"; // anonymous | guest | user
 let guestDiary = [];
+
+let firebaseAppApi = null;
+let firebaseAuthApi = null;
+let firebaseAuth = null;
 
 function round(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -118,15 +124,26 @@ function canUseDashboard() {
   return isGuestMode() || isAuthenticatedMode();
 }
 
+function setInputFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    currentImageData = String(reader.result || "");
+    imagePreviewEl.src = currentImageData;
+    imagePreviewEl.hidden = false;
+    updateAnalyzeButtonState();
+  };
+  reader.readAsDataURL(file);
+}
+
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (options.body) headers["Content-Type"] = "application/json";
-
   let response;
   try {
     response = await fetch(path, { credentials: "include", ...options, headers });
   } catch {
-    throw new Error("Не вдалося підключитися до сервера. Запустіть backend.py і оновіть сторінку.");
+    throw new Error("Бекенд недоступний. Запустіть: python3 backend.py");
   }
 
   let data = {};
@@ -135,16 +152,41 @@ async function api(path, options = {}) {
   } catch {
     data = {};
   }
-
   if (!response.ok) {
-    if (response.status === 401 && sessionMode === "user") {
-      currentUser = null;
-      sessionMode = "anonymous";
-      renderView();
-    }
     throw new Error(data.error || "Сервер повернув помилку.");
   }
   return data;
+}
+
+async function initFirebase() {
+  if (!FIREBASE_CONFIG || !FIREBASE_CONFIG.apiKey) {
+    setMessage(
+      "Firebase не налаштований. Додайте window.MYFITNESSPAL_FIREBASE_CONFIG (apiKey, authDomain, projectId).",
+      true
+    );
+    return false;
+  }
+
+  try {
+    firebaseAppApi = await import("https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js");
+    firebaseAuthApi = await import("https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js");
+    const app = firebaseAppApi.initializeApp(FIREBASE_CONFIG);
+    firebaseAuth = firebaseAuthApi.getAuth(app);
+    return true;
+  } catch {
+    setMessage("Не вдалося ініціалізувати Firebase SDK.", true);
+    return false;
+  }
+}
+
+async function syncFirebaseSession(firebaseUser) {
+  const idToken = await firebaseUser.getIdToken();
+  const result = await api("/api/auth/firebase", {
+    method: "POST",
+    body: JSON.stringify({ idToken })
+  });
+  currentUser = { id: result.id, email: result.email, firebaseUid: result.firebaseUid };
+  sessionMode = "user";
 }
 
 function renderView() {
@@ -169,7 +211,9 @@ function renderView() {
 }
 
 function updateAnalyzeButtonState() {
-  analyzeButtonEl.disabled = !model || !currentImageData || !canUseDashboard();
+  const canAnalyze = !!model && !!currentImageData && canUseDashboard();
+  analyzeButtonEl.disabled = !canAnalyze;
+  startProcessButtonEl.disabled = !canAnalyze;
 }
 
 function setNutritionResult(result = null) {
@@ -192,6 +236,7 @@ function clearCurrentAnalysis() {
   imagePreviewEl.hidden = true;
   imagePreviewEl.removeAttribute("src");
   fileInputEl.value = "";
+  dashboardPhotoInputEl.value = "";
   updateAnalyzeButtonState();
 }
 
@@ -208,7 +253,6 @@ function renderTotals() {
   const target = CALORIE_TARGETS[goalSelectEl.value] || CALORIE_TARGETS.maintain;
   const calories = round(currentDayTotals.calories);
   const percent = target ? Math.min(200, round((calories / target) * 100)) : 0;
-
   totalCaloriesEl.textContent = `${calories} ккал`;
   targetCaloriesEl.textContent = `${target} ккал`;
   targetPercentEl.textContent = `${percent}%`;
@@ -219,7 +263,6 @@ function renderTotals() {
 function renderDiary(entries) {
   diaryListEl.innerHTML = "";
   emptyLogEl.hidden = entries.length > 0;
-
   entries.forEach((entry) => {
     const localTime = new Date(entry.createdAt).toLocaleTimeString("uk-UA", {
       hour: "2-digit",
@@ -277,7 +320,6 @@ async function loadHistory(days = 30) {
     const start = new Date(today);
     start.setDate(today.getDate() - (days - 1));
     const byDate = {};
-
     guestDiary.forEach((entry) => {
       byDate[entry.dateKey] = (byDate[entry.dateKey] || 0) + Number(entry.calories || 0);
     });
@@ -290,11 +332,10 @@ async function loadHistory(days = 30) {
       const key = date.toISOString().slice(0, 10);
       const value = round(byDate[key] || 0);
       daysList.push({ date: key, calories: value });
-      const weeklyThreshold = new Date(today);
-      weeklyThreshold.setDate(today.getDate() - 6);
-      if (date >= weeklyThreshold) weekly.push(value);
+      const threshold = new Date(today);
+      threshold.setDate(today.getDate() - 6);
+      if (date >= threshold) weekly.push(value);
     }
-
     const weeklyAverageCalories = weekly.length ? round(weekly.reduce((acc, item) => acc + item, 0) / weekly.length) : 0;
     renderHistory(daysList, weeklyAverageCalories);
     return;
@@ -303,29 +344,17 @@ async function loadHistory(days = 30) {
   renderHistory([], 0);
 }
 
-async function handleImageSelect(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    currentImageData = String(reader.result || "");
-    imagePreviewEl.src = currentImageData;
-    imagePreviewEl.hidden = false;
-    updateAnalyzeButtonState();
-  };
-  reader.readAsDataURL(file);
-}
-
 async function loadModel() {
   try {
     setModelStatus("Завантаження AI-моделі...");
     if (typeof mobilenet === "undefined") {
-      throw new Error("MobileNet недоступний.");
+      throw new Error("MobileNet недоступний");
     }
     model = await mobilenet.load({ version: 2, alpha: 1.0 });
-    setModelStatus("Модель готова до аналізу.", true);
+    setModelStatus("Модель готова до аналізу", true);
     updateAnalyzeButtonState();
   } catch (error) {
-    setModelStatus("Помилка завантаження AI-моделі.");
-    modelStatusEl.classList.add("error");
+    setModelStatus("Помилка завантаження AI-моделі");
     setMessage(error.message, true);
   }
 }
@@ -342,25 +371,21 @@ function renderPredictionChips(labels) {
 
 async function analyzeImage() {
   if (!model || !currentImageData || !canUseDashboard()) return;
-
   analyzeButtonEl.disabled = true;
+  startProcessButtonEl.disabled = true;
   analyzeButtonEl.textContent = "Аналіз...";
-  setMessage("Виконується AI-розпізнавання...");
+  startProcessButtonEl.textContent = "Процес...";
+  setMessage("Йде AI-аналіз фото...");
 
   try {
     const predictions = await model.classify(imagePreviewEl, 3);
     const fallbackLabel = predictions[0]?.className || "";
-
     const recognition = await api("/api/food/recognize", {
       method: "POST",
-      body: JSON.stringify({
-        imageData: currentImageData,
-        fallbackLabel
-      })
+      body: JSON.stringify({ imageData: currentImageData, fallbackLabel })
     });
-
-    const labels = recognition.labels && recognition.labels.length ? recognition.labels : [fallbackLabel || "unknown food"];
-    renderPredictionChips(labels.map((l) => `${l}`));
+    const labels = recognition.labels?.length ? recognition.labels : [fallbackLabel || "unknown food"];
+    renderPredictionChips(labels);
 
     const grams = Math.max(1, Number(gramsInputEl.value || 250));
     const estimate = await api("/api/food/estimate", {
@@ -375,26 +400,27 @@ async function analyzeImage() {
       protein: estimate.protein,
       fat: estimate.fat,
       carbs: estimate.carbs,
-      source: `${estimate.source} / ${recognition.provider || "MobileNet"}`,
+      source: `${estimate.source} / ${recognition.provider || "MobileNet fallback"}`,
       confidence: predictions[0]?.probability || 0
     };
     setNutritionResult(currentAnalysis);
     saveEntryButtonEl.disabled = false;
-    setMessage("Аналіз завершено. Додайте запис у щоденник.");
+    setMessage("Процес завершено. Натисніть «Додати у щоденник».");
   } catch (error) {
     currentAnalysis = null;
     setNutritionResult(null);
-    setMessage(error.message || "Помилка аналізу.", true);
+    setMessage(error.message || "Помилка аналізу", true);
   } finally {
     analyzeButtonEl.textContent = "AI-аналіз";
+    startProcessButtonEl.textContent = "Запустити процес";
     updateAnalyzeButtonState();
   }
 }
 
 async function saveEntry() {
   if (!currentAnalysis || !canUseDashboard()) return;
-
   const dateKey = entryDateEl.value || todayKey();
+
   if (isAuthenticatedMode()) {
     await api("/api/diary/entries", {
       method: "POST",
@@ -413,7 +439,6 @@ async function saveEntry() {
   saveEntryButtonEl.disabled = true;
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  setMessage(isGuestMode() ? "Запис додано в гостьовий щоденник." : "Запис додано в акаунт.");
 }
 
 async function deleteEntry(entryId) {
@@ -430,9 +455,8 @@ async function deleteEntry(entryId) {
 async function clearCurrentDay() {
   const selectedDate = viewDateEl.value || todayKey();
   if (isAuthenticatedMode()) {
-    const ids = currentDayEntries.map((entry) => entry.id);
-    for (const id of ids) {
-      await api(`/api/diary/entries/${id}`, { method: "DELETE" });
+    for (const entry of currentDayEntries) {
+      await api(`/api/diary/entries/${entry.id}`, { method: "DELETE" });
     }
   } else {
     guestDiary = guestDiary.filter((entry) => entry.dateKey !== selectedDate);
@@ -444,46 +468,34 @@ async function clearCurrentDay() {
 
 async function submitRegister(event) {
   event.preventDefault();
+  if (!firebaseAuth || !firebaseAuthApi) {
+    throw new Error("Firebase не налаштований. Перевірте конфігурацію.");
+  }
   const email = registerEmailEl.value.trim().toLowerCase();
   const password = registerPasswordEl.value;
-  if (!email || password.length < 6) {
-    setMessage("Перевірте email і пароль (мінімум 6 символів).", true);
-    return;
-  }
-
-  const user = await api("/api/auth/register", {
-    method: "POST",
-    body: JSON.stringify({ email, password })
-  });
-  currentUser = user;
-  sessionMode = "user";
+  const credential = await firebaseAuthApi.createUserWithEmailAndPassword(firebaseAuth, email, password);
+  await syncFirebaseSession(credential.user);
+  registerFormEl.reset();
   renderView();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  registerFormEl.reset();
-  setMessage("Реєстрація успішна. Ви у робочому екрані.");
+  setMessage("Реєстрація через Firebase успішна.");
 }
 
 async function submitLogin(event) {
   event.preventDefault();
+  if (!firebaseAuth || !firebaseAuthApi) {
+    throw new Error("Firebase не налаштований. Перевірте конфігурацію.");
+  }
   const email = loginEmailEl.value.trim().toLowerCase();
   const password = loginPasswordEl.value;
-  if (!email || !password) {
-    setMessage("Вкажіть email і пароль.", true);
-    return;
-  }
-
-  const user = await api("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password })
-  });
-  currentUser = user;
-  sessionMode = "user";
+  const credential = await firebaseAuthApi.signInWithEmailAndPassword(firebaseAuth, email, password);
+  await syncFirebaseSession(credential.user);
+  loginFormEl.reset();
   renderView();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  loginFormEl.reset();
-  setMessage("Вхід успішний. Ви у робочому екрані.");
+  setMessage("Вхід через Firebase успішний.");
 }
 
 function enterGuestMode() {
@@ -493,22 +505,23 @@ function enterGuestMode() {
   renderView();
   loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
   loadHistory(30).catch((error) => setMessage(error.message, true));
-  setMessage("Увімкнено гостьовий режим.");
+  setMessage("Гостьовий режим увімкнено.");
 }
 
 async function logout() {
-  if (isAuthenticatedMode()) {
-    await api("/api/auth/logout", { method: "POST" });
+  if (firebaseAuth && firebaseAuthApi) {
+    await firebaseAuthApi.signOut(firebaseAuth);
   }
-  sessionMode = "anonymous";
+  await api("/api/auth/logout", { method: "POST" }).catch(() => {});
   currentUser = null;
+  sessionMode = "anonymous";
   currentDayEntries = [];
   currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
   renderView();
   renderDiary([]);
   renderHistory([], 0);
   renderTotals();
-  setMessage("Ви повернулися на екран входу.");
+  setMessage("Ви вийшли з акаунта.");
 }
 
 function initInstallPrompt() {
@@ -517,7 +530,6 @@ function initInstallPrompt() {
     deferredPrompt = event;
     installButtonEl.hidden = false;
   });
-
   installButtonEl.addEventListener("click", async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -534,16 +546,34 @@ function registerServiceWorker() {
 }
 
 async function checkAuth() {
-  try {
-    const data = await api("/api/auth/me");
-    currentUser = data.authenticated ? data.user : null;
-    sessionMode = currentUser ? "user" : "anonymous";
-  } catch {
+  if (!firebaseAuth || !firebaseAuthApi) {
+    currentUser = null;
+    sessionMode = "anonymous";
+    renderView();
+    return;
+  }
+
+  const firebaseUser = await new Promise((resolve) => {
+    const unsub = firebaseAuthApi.onAuthStateChanged(firebaseAuth, (user) => {
+      unsub();
+      resolve(user);
+    });
+  });
+
+  if (firebaseUser) {
+    try {
+      await syncFirebaseSession(firebaseUser);
+    } catch {
+      currentUser = null;
+      sessionMode = "anonymous";
+    }
+  } else {
     currentUser = null;
     sessionMode = "anonymous";
   }
+
   renderView();
-  if (isAuthenticatedMode()) {
+  if (canUseDashboard()) {
     await loadDayDiary(viewDateEl.value || todayKey());
     await loadHistory(30);
   }
@@ -551,41 +581,40 @@ async function checkAuth() {
 
 function wireEvents() {
   navSignInButtonEl.addEventListener("click", () => {
-    landingViewEl.classList.remove("hidden");
     authCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
   });
-
   navGetStartedButtonEl.addEventListener("click", () => {
-    landingViewEl.classList.remove("hidden");
     authCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 
   registerFormEl.addEventListener("submit", (event) => {
     submitRegister(event).catch((error) => setMessage(error.message, true));
   });
-
   loginFormEl.addEventListener("submit", (event) => {
     submitLogin(event).catch((error) => setMessage(error.message, true));
   });
-
   guestModeButtonEl.addEventListener("click", enterGuestMode);
 
   switchToAccountButtonEl.addEventListener("click", () => {
     sessionMode = "anonymous";
     renderView();
-    setMessage("Увійдіть у свій акаунт або створіть новий.");
-    authCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
   });
-
   logoutButtonEl.addEventListener("click", () => {
     logout().catch((error) => setMessage(error.message, true));
   });
 
   fileInputEl.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
-    if (file) handleImageSelect(file);
+    if (file) setInputFile(file);
+  });
+  dashboardPhotoInputEl.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (file) setInputFile(file);
   });
 
+  startProcessButtonEl.addEventListener("click", () => {
+    analyzeImage().catch((error) => setMessage(error.message, true));
+  });
   analyzeButtonEl.addEventListener("click", () => {
     analyzeImage().catch((error) => setMessage(error.message, true));
   });
@@ -622,9 +651,10 @@ async function init() {
   wireEvents();
   initInstallPrompt();
   registerServiceWorker();
+  await initFirebase();
   await checkAuth();
   await loadModel();
-  setMessage("Готово. Увійдіть, зареєструйтесь або продовжуйте як гість.");
+  setMessage("Готово: доступні Firebase вхід/реєстрація або гостьовий режим.");
 }
 
 init().catch((error) => {

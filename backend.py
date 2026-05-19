@@ -10,6 +10,8 @@ from typing import Optional
 
 import requests
 from flask import Flask, jsonify, request, session
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +24,7 @@ CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
 CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
 CLARIFAI_MODEL_ID = os.getenv("CLARIFAI_FOOD_MODEL_ID", "food-item-recognition").strip()
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "").strip()
 
 DEFAULT_CALORIES_BY_LABEL = {
     "salad": ("Mixed salad", 120, 4, 7, 10),
@@ -56,9 +59,16 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            firebase_uid TEXT,
             created_at TEXT NOT NULL
         )
         """
+    )
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "firebase_uid" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT")
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid) WHERE firebase_uid IS NOT NULL"
     )
     cur.execute(
         """
@@ -109,6 +119,60 @@ def auth_required():
     if not user_id:
         return None, (jsonify({"error": "Потрібна авторизація"}), 401)
     return user_id, None
+
+
+def verify_firebase_token(raw_token: str) -> Optional[dict]:
+    token = (raw_token or "").strip()
+    if not token:
+        return None
+    if not FIREBASE_PROJECT_ID:
+        return None
+    try:
+        return google_id_token.verify_firebase_token(
+            token,
+            google_requests.Request(),
+            audience=FIREBASE_PROJECT_ID,
+        )
+    except Exception:
+        return None
+
+
+def upsert_firebase_user(firebase_uid: str, email: str) -> tuple[int, str]:
+    conn = db_connect()
+    cur = conn.cursor()
+    existing_by_uid = cur.execute(
+        "SELECT id, email FROM users WHERE firebase_uid = ?",
+        (firebase_uid,),
+    ).fetchone()
+    if existing_by_uid:
+        user_id = int(existing_by_uid["id"])
+        user_email = existing_by_uid["email"]
+        conn.close()
+        return user_id, user_email
+
+    existing_by_email = cur.execute(
+        "SELECT id, email FROM users WHERE email = ?",
+        (email,),
+    ).fetchone()
+    if existing_by_email:
+        user_id = int(existing_by_email["id"])
+        cur.execute(
+            "UPDATE users SET firebase_uid = ? WHERE id = ?",
+            (firebase_uid, user_id),
+        )
+        conn.commit()
+        conn.close()
+        return user_id, existing_by_email["email"]
+
+    placeholder_password_hash = hash_password(secrets.token_urlsafe(24))
+    cur.execute(
+        "INSERT INTO users(email, password_hash, firebase_uid, created_at) VALUES(?,?,?,?)",
+        (email, placeholder_password_hash, firebase_uid, dt.datetime.utcnow().isoformat()),
+    )
+    conn.commit()
+    user_id = int(cur.lastrowid)
+    conn.close()
+    return user_id, email
 
 
 @dataclass
@@ -455,6 +519,10 @@ def create_app() -> Flask:
         return jsonify(
             {
                 "databasePath": DB_PATH,
+                "authProviders": {
+                    "firebaseConfigured": bool(FIREBASE_PROJECT_ID),
+                    "localPasswordAuth": True,
+                },
                 "recognitionProviders": {
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
@@ -466,6 +534,27 @@ def create_app() -> Flask:
                 },
             }
         )
+
+    @app.post("/api/auth/firebase")
+    def firebase_auth():
+        payload = request.get_json(silent=True) or {}
+        id_token_raw = payload.get("idToken", "")
+        token_info = verify_firebase_token(id_token_raw)
+        if not token_info:
+            return jsonify(
+                {
+                    "error": "Firebase токен не валідний або FIREBASE_PROJECT_ID не налаштований на сервері."
+                }
+            ), 401
+
+        firebase_uid = token_info.get("uid")
+        if not firebase_uid:
+            return jsonify({"error": "Firebase UID відсутній у токені."}), 401
+
+        email = (token_info.get("email") or f"{firebase_uid}@firebase.local").strip().lower()
+        user_id, user_email = upsert_firebase_user(firebase_uid, email)
+        session["user_id"] = user_id
+        return jsonify({"id": user_id, "email": user_email, "firebaseUid": firebase_uid})
 
     @app.post("/api/food/recognize")
     def recognize_food():

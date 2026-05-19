@@ -33,6 +33,7 @@
             <p class="upload-title">Upload Food Photo</p>
             <p class="upload-subtitle">Drag an image or click to browse</p>
             <input id="image-input" type="file" accept="image/*" capture="environment" />
+            <button id="startProcessButton" class="btn primary" type="button" disabled>Запустити процес</button>
             <img id="image-preview" alt="Попередній перегляд страви" hidden />
           </div>
         </div>
@@ -81,6 +82,7 @@
           <article class="panel">
             <h2>Аналіз фото</h2>
             <p class="status">Після вибору фото натисніть «AI-аналіз».</p>
+            <input id="dashboard-photo-input" type="file" accept="image/*" capture="environment" />
             <div class="controls">
               <button id="analyze-button" class="btn primary" disabled type="button">AI-аналіз</button>
               <button id="clear-button" class="btn ghost" type="button">Очистити</button>
@@ -168,6 +170,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=4"></script>
+    <script type="module" src="./app.js?v=5"></script>
   </body>
 </html>

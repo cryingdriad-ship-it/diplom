@@ -118,6 +118,15 @@ body {
   margin: 0 auto;
 }
 
+#startProcessButton {
+  display: block;
+  margin: 0.7rem auto 0;
+}
+
+#dashboard-photo-input {
+  margin-bottom: 0.7rem;
+}
+
 #image-preview {
   margin-top: 0.9rem;
   width: 100%;
