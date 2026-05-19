@@ -56,6 +56,8 @@ window.MYFITNESSPAL_FIREBASE_CONFIG = {
 export FIREBASE_PROJECT_ID="YOUR_PROJECT_ID"
 ```
 
+Якщо Firebase config не заданий, клієнт автоматично використовує локальну авторизацію бекенду (`/api/auth/register`, `/api/auth/login`) як fallback.
+
 Після завантаження фото є окрема кнопка **«Запустити процес»**, яка стартує AI-аналіз.
 
 > **Строго конфіденційно**

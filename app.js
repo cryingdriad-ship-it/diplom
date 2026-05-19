@@ -160,10 +160,7 @@ async function api(path, options = {}) {
 
 async function initFirebase() {
   if (!FIREBASE_CONFIG || !FIREBASE_CONFIG.apiKey) {
-    setMessage(
-      "Firebase не налаштований. Додайте window.MYFITNESSPAL_FIREBASE_CONFIG (apiKey, authDomain, projectId).",
-      true
-    );
+    setMessage("Firebase не налаштований: тимчасово використовується локальна авторизація бекенду.");
     return false;
   }
 
@@ -186,6 +183,16 @@ async function syncFirebaseSession(firebaseUser) {
     body: JSON.stringify({ idToken })
   });
   currentUser = { id: result.id, email: result.email, firebaseUid: result.firebaseUid };
+  sessionMode = "user";
+}
+
+async function localAuth(email, password, registerMode) {
+  const endpoint = registerMode ? "/api/auth/register" : "/api/auth/login";
+  const user = await api(endpoint, {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+  currentUser = { id: user.id, email: user.email };
   sessionMode = "user";
 }
 
@@ -468,34 +475,36 @@ async function clearCurrentDay() {
 
 async function submitRegister(event) {
   event.preventDefault();
-  if (!firebaseAuth || !firebaseAuthApi) {
-    throw new Error("Firebase не налаштований. Перевірте конфігурацію.");
-  }
   const email = registerEmailEl.value.trim().toLowerCase();
   const password = registerPasswordEl.value;
-  const credential = await firebaseAuthApi.createUserWithEmailAndPassword(firebaseAuth, email, password);
-  await syncFirebaseSession(credential.user);
+  if (firebaseAuth && firebaseAuthApi) {
+    const credential = await firebaseAuthApi.createUserWithEmailAndPassword(firebaseAuth, email, password);
+    await syncFirebaseSession(credential.user);
+  } else {
+    await localAuth(email, password, true);
+  }
   registerFormEl.reset();
   renderView();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  setMessage("Реєстрація через Firebase успішна.");
+  setMessage(firebaseAuth ? "Реєстрація через Firebase успішна." : "Локальна реєстрація успішна.");
 }
 
 async function submitLogin(event) {
   event.preventDefault();
-  if (!firebaseAuth || !firebaseAuthApi) {
-    throw new Error("Firebase не налаштований. Перевірте конфігурацію.");
-  }
   const email = loginEmailEl.value.trim().toLowerCase();
   const password = loginPasswordEl.value;
-  const credential = await firebaseAuthApi.signInWithEmailAndPassword(firebaseAuth, email, password);
-  await syncFirebaseSession(credential.user);
+  if (firebaseAuth && firebaseAuthApi) {
+    const credential = await firebaseAuthApi.signInWithEmailAndPassword(firebaseAuth, email, password);
+    await syncFirebaseSession(credential.user);
+  } else {
+    await localAuth(email, password, false);
+  }
   loginFormEl.reset();
   renderView();
   await loadDayDiary(viewDateEl.value || todayKey());
   await loadHistory(30);
-  setMessage("Вхід через Firebase успішний.");
+  setMessage(firebaseAuth ? "Вхід через Firebase успішний." : "Локальний вхід успішний.");
 }
 
 function enterGuestMode() {
@@ -547,9 +556,19 @@ function registerServiceWorker() {
 
 async function checkAuth() {
   if (!firebaseAuth || !firebaseAuthApi) {
-    currentUser = null;
-    sessionMode = "anonymous";
+    try {
+      const data = await api("/api/auth/me");
+      currentUser = data.authenticated ? data.user : null;
+      sessionMode = currentUser ? "user" : "anonymous";
+    } catch {
+      currentUser = null;
+      sessionMode = "anonymous";
+    }
     renderView();
+    if (canUseDashboard()) {
+      await loadDayDiary(viewDateEl.value || todayKey());
+      await loadHistory(30);
+    }
     return;
   }
 
