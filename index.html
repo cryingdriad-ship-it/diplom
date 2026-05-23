@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0ea84f" />
+    <title>MyFitnessPal AI</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="top-nav">
+        <div class="brand">MyFitnessPal</div>
+        <nav class="menu">
+          <a href="#how-it-works">How It Works</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#blog">Blog</a>
+        </nav>
+        <div class="nav-actions">
+          <button id="navSignInButton" class="btn ghost" type="button">Sign in</button>
+          <button id="navGetStartedButton" class="btn primary" type="button">Get started</button>
+        </div>
+      </header>
+
+      <section id="landingView" class="hero">
+        <h1>
+          AI-Powered Nutrition Tracking
+          <span>for your daily life</span>
+        </h1>
+        <div class="hero-card">
+          <div class="upload-box">
+            <p class="upload-title">Upload Food Photo</p>
+            <p class="upload-subtitle">Drag an image or click to browse</p>
+            <input id="image-input" type="file" accept="image/*" capture="environment" />
+            <button id="startProcessButton" class="btn primary" type="button" disabled>Запустити процес</button>
+            <img id="image-preview" alt="Попередній перегляд страви" hidden />
+          </div>
+        </div>
+
+        <section id="authCard" class="auth-card hidden">
+          <h2>Увійдіть або створіть акаунт</h2>
+          <p class="status">
+            Після входу ви переходите в робочий екран щоденника.
+          </p>
+          <div class="auth-grid">
+            <form id="registerForm" class="panel">
+              <h3>Реєстрація</h3>
+              <label>Email <input id="registerEmail" type="email" required /></label>
+              <label>Пароль (мін. 6 символів) <input id="registerPassword" type="password" minlength="6" required /></label>
+              <button class="btn primary" type="submit">Створити акаунт</button>
+            </form>
+
+            <form id="loginForm" class="panel">
+              <h3>Вхід</h3>
+              <label>Email <input id="loginEmail" type="email" required /></label>
+              <label>Пароль <input id="loginPassword" type="password" required /></label>
+              <button class="btn primary" type="submit">Увійти</button>
+            </form>
+          </div>
+          <div class="auth-actions">
+            <button id="guestModeButton" class="btn ghost" type="button">Увійти як гість</button>
+          </div>
+        </section>
+      </section>
+
+      <section id="dashboardView" class="hidden">
+        <article class="account-bar panel">
+          <div>
+            <h2>Робочий екран</h2>
+            <p id="accountEmail" class="status">—</p>
+            <p id="sessionModeBadge" class="status">Не авторизовано</p>
+          </div>
+          <div class="controls">
+            <button id="switchToAccountButton" class="btn ghost hidden" type="button">Увійти в акаунт</button>
+            <button id="logoutButton" class="btn ghost" type="button">Вийти</button>
+            <button id="install-button" class="btn ghost" hidden type="button">Встановити застосунок</button>
+          </div>
+        </article>
+
+        <section class="grid" id="how-it-works">
+          <article class="panel">
+            <h2>Аналіз фото</h2>
+            <p class="status">Після вибору фото натисніть «AI-аналіз».</p>
+            <input id="dashboard-photo-input" type="file" accept="image/*" capture="environment" />
+            <div class="controls">
+              <button id="analyze-button" class="btn primary" disabled type="button">AI-аналіз</button>
+              <button id="clear-button" class="btn ghost" type="button">Очистити</button>
+            </div>
+            <p id="model-status" class="status">Завантаження AI-моделі...</p>
+          </article>
+
+          <article class="panel">
+            <h2>Налаштування запису</h2>
+            <div class="controls column">
+              <label>
+                Ціль:
+                <select id="goal-select">
+                  <option value="loss">Схуднення</option>
+                  <option value="maintain" selected>Підтримка ваги</option>
+                  <option value="gain">Набір маси</option>
+                </select>
+              </label>
+              <label>
+                Порція (грами):
+                <input id="grams-input" type="number" min="1" max="2000" value="250" />
+              </label>
+              <label>
+                Дата запису:
+                <input id="entry-date" type="date" />
+              </label>
+              <label>
+                Перегляд дати:
+                <input id="view-date" type="date" />
+              </label>
+            </div>
+            <div class="controls">
+              <button id="refresh-day" class="btn ghost" type="button">Оновити день</button>
+              <button id="clear-day" class="btn ghost" type="button">Очистити день</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid">
+          <article class="panel">
+            <h2>Результат розпізнавання</h2>
+            <div id="prediction-chips" class="chips"></div>
+            <div class="metrics">
+              <div class="metric"><span>Страва</span><strong id="guessed-food">—</strong></div>
+              <div class="metric"><span>Джерело даних</span><strong id="nutrition-source">—</strong></div>
+              <div class="metric"><span>Порція (г)</span><strong id="detected-grams">—</strong></div>
+              <div class="metric"><span>Калорії</span><strong id="calories">—</strong></div>
+              <div class="metric"><span>Білки</span><strong id="proteins">—</strong></div>
+              <div class="metric"><span>Жири</span><strong id="fats">—</strong></div>
+              <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
+              <div class="metric"><span>AI-впевненість</span><strong id="confidence">—</strong></div>
+            </div>
+            <div class="controls">
+              <button id="save-entry" class="btn primary" disabled type="button">Додати у щоденник</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>Щоденник за дату</h2>
+            <div class="metrics">
+              <div class="metric"><span>Спожито</span><strong id="total-calories">0 ккал</strong></div>
+              <div class="metric"><span>Ціль</span><strong id="target-calories">2000 ккал</strong></div>
+              <div class="metric"><span>Виконання</span><strong id="target-percent">0%</strong></div>
+              <div class="metric"><span>Б/Ж/В</span><strong id="macro-ratio">0 / 0 / 0 г</strong></div>
+            </div>
+            <progress id="target-progress" max="100" value="0"></progress>
+            <p id="empty-log" class="status">Записів за цю дату немає.</p>
+            <ul id="daily-list" class="daily-list"></ul>
+          </article>
+        </section>
+
+        <section class="panel">
+          <h2 id="pricing">Історія калорійності</h2>
+          <div class="metrics">
+            <div class="metric"><span>Середнє за 7 днів</span><strong id="weekly-average">0 ккал</strong></div>
+            <div class="metric"><span>Період історії</span><strong>Останні 30 днів</strong></div>
+          </div>
+          <ul id="history-list" class="daily-list"></ul>
+        </section>
+      </section>
+
+      <p id="appMessage" class="footer">Система готова до роботи.</p>
+      <p id="blog" class="status center">Demo MVP • Backend: Flask + SQLite • AI: Spoonacular/Clarifai/MobileNet + USDA/FatSecret/OpenFoodFacts</p>
+    </main>
+
+    <script src="./firebase-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
+    <script type="module" src="./app.js?v=6"></script>
+  </body>
+</html>
