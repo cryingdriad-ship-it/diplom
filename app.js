@@ -468,6 +468,7 @@ async function analyzeImage() {
     const fallbackLabel = predictions[0]?.className || "unknown food";
     let labels = [fallbackLabel];
     let provider = "MobileNet";
+    let providerDiagnostics = "";
 
     try {
       const recognition = await api("/api/food/recognize", {
@@ -476,6 +477,7 @@ async function analyzeImage() {
       });
       labels = recognition.labels?.length ? recognition.labels : [fallbackLabel];
       provider = recognition.provider || provider;
+      providerDiagnostics = recognition.providerDiagnostics || "";
     } catch {}
 
     renderPredictionChips(labels);
@@ -502,7 +504,8 @@ async function analyzeImage() {
     };
     setNutritionResult(currentAnalysis);
     saveEntryButtonEl.disabled = false;
-    setMessage("Процес завершено. Натисніть «Додати у щоденник».");
+    const debugNote = providerDiagnostics ? ` Причина fallback: ${providerDiagnostics}.` : "";
+    setMessage(`Процес завершено. Натисніть «Додати у щоденник».${debugNote}`);
   } catch (error) {
     currentAnalysis = null;
     setNutritionResult(null);

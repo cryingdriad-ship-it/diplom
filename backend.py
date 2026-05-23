@@ -15,12 +15,34 @@ from google.oauth2 import id_token as google_id_token
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_local_env_file(path: str) -> None:
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if not key:
+                    continue
+                value = value.strip().strip("\"'")
+                os.environ.setdefault(key, value)
+    except OSError:
+        return
+
+
+load_local_env_file(os.path.join(BASE_DIR, ".env"))
 DB_PATH = os.getenv("MYFITNESSPAL_DB_PATH", os.path.join(BASE_DIR, "myfitnesspal.db"))
 
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
 FATSECRET_CLIENT_ID = os.getenv("FATSECRET_CLIENT_ID", "").strip()
 FATSECRET_CLIENT_SECRET = os.getenv("FATSECRET_CLIENT_SECRET", "").strip()
-SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY", "").strip()
+SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY", os.getenv("SPOONACULAR_KEY", "")).strip()
 CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
 CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
@@ -218,33 +240,109 @@ def unique_labels(candidates: list[str], limit: int = 5) -> list[str]:
     return labels
 
 
-def fetch_spoonacular_labels(image_bytes: bytes) -> list[str]:
-    if not SPOONACULAR_API_KEY:
-        return []
+def compact_error_text(text: str, max_len: int = 160) -> str:
+    normalized = re.sub(r"\s+", " ", (text or "").strip())
+    if len(normalized) <= max_len:
+        return normalized
+    return normalized[: max_len - 3] + "..."
+
+
+def spoonacular_error_message(response: requests.Response) -> str:
     try:
-        response = requests.post(
-            "https://api.spoonacular.com/food/images/analyze",
-            params={"apiKey": SPOONACULAR_API_KEY},
-            files={"file": ("food.jpg", image_bytes, "image/jpeg")},
-            timeout=10,
-        )
-        response.raise_for_status()
-        data = response.json()
-        candidates = []
-        category = data.get("category") or {}
-        if isinstance(category, dict):
-            candidates.append(category.get("name", ""))
-        for recipe in (data.get("recipes") or [])[:4]:
-            if isinstance(recipe, dict):
-                candidates.append(recipe.get("title", ""))
-        return unique_labels(candidates)
-    except (requests.RequestException, ValueError):
-        return []
+        payload = response.json()
+    except ValueError:
+        return compact_error_text(response.text or response.reason or "Unknown API error")
+
+    if isinstance(payload, dict):
+        for key in ("message", "error", "status"):
+            if payload.get(key):
+                return compact_error_text(str(payload.get(key)))
+        if payload.get("code") and payload.get("message"):
+            return compact_error_text(f'{payload.get("code")}: {payload.get("message")}')
+        return compact_error_text(str(payload))
+    return compact_error_text(str(payload))
 
 
-def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
+def post_spoonacular_image(endpoint: str, image_bytes: bytes) -> tuple[Optional[dict], Optional[str]]:
+    if not SPOONACULAR_API_KEY:
+        return None, "SPOONACULAR_API_KEY is not configured"
+    errors = []
+    for field_name in ("file", "image"):
+        try:
+            response = requests.post(
+                endpoint,
+                params={"apiKey": SPOONACULAR_API_KEY},
+                files={field_name: ("food.jpg", image_bytes, "image/jpeg")},
+                timeout=10,
+            )
+        except requests.RequestException as exc:
+            errors.append(f"{field_name}: network error ({exc.__class__.__name__})")
+            continue
+        if response.status_code >= 400:
+            errors.append(f"{field_name}: HTTP {response.status_code} {spoonacular_error_message(response)}")
+            continue
+        try:
+            data = response.json()
+        except ValueError:
+            errors.append(f"{field_name}: invalid JSON response from Spoonacular")
+            continue
+        if isinstance(data, dict):
+            return data, None
+        errors.append(f"{field_name}: unexpected response format")
+
+    return None, compact_error_text("; ".join(errors) or "Spoonacular request failed")
+
+
+def parse_spoonacular_analyze_labels(data: dict) -> list[str]:
+    candidates = []
+    category = data.get("category") or {}
+    if isinstance(category, dict):
+        candidates.append(category.get("name", ""))
+    elif isinstance(category, str):
+        candidates.append(category)
+    for recipe in (data.get("recipes") or [])[:4]:
+        if isinstance(recipe, dict):
+            candidates.append(recipe.get("title", ""))
+    return unique_labels(candidates)
+
+
+def parse_spoonacular_classify_labels(data: dict) -> list[str]:
+    categories = data.get("categories") or []
+    if isinstance(categories, dict):
+        categories = [categories]
+    if not isinstance(categories, list):
+        categories = []
+    return unique_labels([item.get("name", "") for item in categories if isinstance(item, dict)])
+
+
+def fetch_spoonacular_labels(image_bytes: bytes) -> tuple[list[str], Optional[str]]:
+    if not SPOONACULAR_API_KEY:
+        return [], "SPOONACULAR_API_KEY is not configured"
+
+    analyze_data, analyze_error = post_spoonacular_image(
+        "https://api.spoonacular.com/food/images/analyze", image_bytes
+    )
+    if analyze_data:
+        labels = parse_spoonacular_analyze_labels(analyze_data)
+        if labels:
+            return labels, None
+    classify_data, classify_error = post_spoonacular_image(
+        "https://api.spoonacular.com/food/images/classify", image_bytes
+    )
+    if classify_data:
+        labels = parse_spoonacular_classify_labels(classify_data)
+        if labels:
+            return labels, None
+
+    combined_error = compact_error_text(
+        "; ".join([f"analyze: {analyze_error or 'empty result'}", f"classify: {classify_error or 'empty result'}"])
+    )
+    return [], combined_error
+
+
+def fetch_clarifai_labels(image_bytes: bytes) -> tuple[list[str], Optional[str]]:
     if not CLARIFAI_PAT:
-        return []
+        return [], "CLARIFAI_PAT is not configured"
     try:
         payload = {
             "user_app_id": {"user_id": CLARIFAI_USER_ID, "app_id": CLARIFAI_APP_ID},
@@ -262,11 +360,14 @@ def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
         response.raise_for_status()
         outputs = response.json().get("outputs", [])
         if not outputs:
-            return []
+            return [], "Clarifai returned empty outputs"
         concepts = outputs[0].get("data", {}).get("concepts", [])
-        return unique_labels([concept.get("name", "") for concept in concepts[:5]])
-    except requests.RequestException:
-        return []
+        labels = unique_labels([concept.get("name", "") for concept in concepts[:5]])
+        if not labels:
+            return [], "Clarifai returned no concepts"
+        return labels, None
+    except requests.RequestException as exc:
+        return [], f"Clarifai request failed ({exc.__class__.__name__})"
 
 
 def fetch_openfoodfacts_food(query: str) -> Optional[FoodResult]:
@@ -560,6 +661,7 @@ def create_app() -> Flask:
                 },
                 "recognitionProviders": {
                     "spoonacularConfigured": bool(SPOONACULAR_API_KEY),
+                    "spoonacularEnvVar": "SPOONACULAR_API_KEY",
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
                     "priorityOrder": [
@@ -609,24 +711,67 @@ def create_app() -> Flask:
         image_data = payload.get("imageData", "")
         labels = []
         provider = "MobileNet fallback"
+        trace = []
+        diagnostics = ""
 
         image_bytes = extract_image_bytes(image_data)
         if image_bytes:
-            labels = fetch_spoonacular_labels(image_bytes)
-            if labels:
+            spoonacular_labels, spoonacular_error = fetch_spoonacular_labels(image_bytes)
+            if spoonacular_labels:
+                labels = spoonacular_labels
                 provider = "Spoonacular food image API"
+                trace.append({"provider": provider, "status": "ok", "labelsCount": len(labels)})
             else:
-                labels = fetch_clarifai_labels(image_bytes)
-                if labels:
+                trace.append(
+                    {
+                        "provider": "Spoonacular food image API",
+                        "status": "failed",
+                        "detail": spoonacular_error or "Unknown Spoonacular error",
+                    }
+                )
+                clarifai_labels, clarifai_error = fetch_clarifai_labels(image_bytes)
+                if clarifai_labels:
+                    labels = clarifai_labels
                     provider = "Clarifai food model"
+                    trace.append({"provider": provider, "status": "ok", "labelsCount": len(labels)})
+                else:
+                    trace.append(
+                        {
+                            "provider": "Clarifai food model",
+                            "status": "failed",
+                            "detail": clarifai_error or "Unknown Clarifai error",
+                        }
+                    )
+                    diagnostics = spoonacular_error or clarifai_error or ""
+        else:
+            diagnostics = "imageData is missing or not a valid base64 data URL"
+            trace.append({"provider": "Input image", "status": "failed", "detail": diagnostics})
 
         if not labels and fallback_label:
             labels = [fallback_label]
+            trace.append({"provider": "MobileNet fallback", "status": "ok", "labelsCount": 1})
 
         if not labels:
             labels = ["unknown food"]
+            trace.append({"provider": "Unknown fallback", "status": "ok", "labelsCount": 1})
 
-        return jsonify({"labels": labels, "provider": provider})
+        if not diagnostics:
+            first_failure = next((item for item in trace if item.get("status") == "failed"), None)
+            if first_failure:
+                diagnostics = str(first_failure.get("detail", ""))
+
+        provider_with_reason = provider
+        if provider != "Spoonacular food image API" and diagnostics:
+            provider_with_reason = f"{provider} ({diagnostics})"
+
+        return jsonify(
+            {
+                "labels": labels,
+                "provider": provider_with_reason,
+                "providerTrace": trace,
+                "providerDiagnostics": diagnostics,
+            }
+        )
 
     @app.post("/api/food/estimate")
     def estimate_food():

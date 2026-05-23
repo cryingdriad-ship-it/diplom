@@ -70,7 +70,20 @@ export FIREBASE_PROJECT_ID="YOUR_PROJECT_ID"
 export SPOONACULAR_API_KEY="YOUR_SPOONACULAR_KEY"
 ```
 
+Альтернатива: ключ можна покласти у файл `.env` в корені проєкту:
+
+```env
+SPOONACULAR_API_KEY=YOUR_SPOONACULAR_KEY
+```
+
+Після зміни ключа **перезапустіть `python3 backend.py`**.
+
 За наявності ключа `/api/food/recognize` використовує Spoonacular як пріоритетний провайдер, і лише при недоступності/помилці переходить до Clarifai та MobileNet fallback.
+
+Швидка перевірка, що Spoonacular підхоплено:
+
+1. Відкрийте `GET /api/meta` і перевірте `recognitionProviders.spoonacularConfigured: true`.
+2. Запустіть аналіз фото. Якщо стався fallback, інтерфейс покаже причину (`HTTP 401/402`, `not configured`, тощо).
 
 > **Строго конфіденційно**
 
