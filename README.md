@@ -26,6 +26,7 @@ export MYFITNESSPAL_DB_PATH="/workspace/myfitnesspal.db"
 ### Реальні джерела AI/food-даних
 
 - **Розпізнавання їжі (AI):**
+  - Spoonacular Food Image API (якщо задано `SPOONACULAR_API_KEY`)
   - Clarifai Food Model (якщо задано `CLARIFAI_PAT`)
   - fallback: MobileNet
 - **Харчова база/нутрієнти:**
@@ -62,6 +63,14 @@ export FIREBASE_PROJECT_ID="YOUR_PROJECT_ID"
 Якщо Firebase config не заданий, клієнт автоматично використовує локальну авторизацію бекенду (`/api/auth/register`, `/api/auth/login`) як fallback.
 
 Після завантаження фото є окрема кнопка **«Запустити процес»**, яка стартує AI-аналіз.
+
+### Налаштування спеціалізованого API для розпізнавання фото їжі
+
+```bash
+export SPOONACULAR_API_KEY="YOUR_SPOONACULAR_KEY"
+```
+
+За наявності ключа `/api/food/recognize` використовує Spoonacular як пріоритетний провайдер, і лише при недоступності/помилці переходить до Clarifai та MobileNet fallback.
 
 > **Строго конфіденційно**
 

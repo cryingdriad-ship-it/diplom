@@ -20,6 +20,7 @@ DB_PATH = os.getenv("MYFITNESSPAL_DB_PATH", os.path.join(BASE_DIR, "myfitnesspal
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
 FATSECRET_CLIENT_ID = os.getenv("FATSECRET_CLIENT_ID", "").strip()
 FATSECRET_CLIENT_SECRET = os.getenv("FATSECRET_CLIENT_SECRET", "").strip()
+SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY", "").strip()
 CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
 CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
@@ -202,6 +203,45 @@ def normalize_label(label: str) -> str:
     return re.sub(r"\s+", " ", (label or "").replace("_", " ").strip())
 
 
+def unique_labels(candidates: list[str], limit: int = 5) -> list[str]:
+    labels = []
+    seen = set()
+    for raw in candidates:
+        label = normalize_label(raw)
+        key = label.casefold()
+        if not label or key in seen:
+            continue
+        seen.add(key)
+        labels.append(label)
+        if len(labels) >= limit:
+            break
+    return labels
+
+
+def fetch_spoonacular_labels(image_bytes: bytes) -> list[str]:
+    if not SPOONACULAR_API_KEY:
+        return []
+    try:
+        response = requests.post(
+            "https://api.spoonacular.com/food/images/analyze",
+            params={"apiKey": SPOONACULAR_API_KEY},
+            files={"file": ("food.jpg", image_bytes, "image/jpeg")},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+        candidates = []
+        category = data.get("category") or {}
+        if isinstance(category, dict):
+            candidates.append(category.get("name", ""))
+        for recipe in (data.get("recipes") or [])[:4]:
+            if isinstance(recipe, dict):
+                candidates.append(recipe.get("title", ""))
+        return unique_labels(candidates)
+    except (requests.RequestException, ValueError):
+        return []
+
+
 def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
     if not CLARIFAI_PAT:
         return []
@@ -224,12 +264,7 @@ def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
         if not outputs:
             return []
         concepts = outputs[0].get("data", {}).get("concepts", [])
-        labels = []
-        for concept in concepts[:5]:
-            name = normalize_label(concept.get("name", ""))
-            if name:
-                labels.append(name)
-        return labels
+        return unique_labels([concept.get("name", "") for concept in concepts[:5]])
     except requests.RequestException:
         return []
 
@@ -524,8 +559,19 @@ def create_app() -> Flask:
                     "localPasswordAuth": True,
                 },
                 "recognitionProviders": {
+                    "spoonacularConfigured": bool(SPOONACULAR_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
+                    "priorityOrder": [
+                        "Spoonacular food image API",
+                        "Clarifai food model",
+                        "MobileNet fallback",
+                    ],
+                    "activeDefault": (
+                        "Spoonacular food image API"
+                        if SPOONACULAR_API_KEY
+                        else ("Clarifai food model" if CLARIFAI_PAT else "MobileNet fallback")
+                    ),
                 },
                 "nutritionProviders": {
                     "usdaConfigured": bool(USDA_API_KEY),
@@ -566,9 +612,13 @@ def create_app() -> Flask:
 
         image_bytes = extract_image_bytes(image_data)
         if image_bytes:
-            labels = fetch_clarifai_labels(image_bytes)
+            labels = fetch_spoonacular_labels(image_bytes)
             if labels:
-                provider = "Clarifai food model"
+                provider = "Spoonacular food image API"
+            else:
+                labels = fetch_clarifai_labels(image_bytes)
+                if labels:
+                    provider = "Clarifai food model"
 
         if not labels and fallback_label:
             labels = [fallback_label]
