@@ -60,7 +60,7 @@ HUGGINGFACE_FOOD_MODELS = [
     if model.strip()
 ]
 try:
-    socket.gethostbyname("api-inference.huggingface.co")
+    socket.gethostbyname("router.huggingface.co")
     HUGGINGFACE_DNS_AVAILABLE = True
 except OSError:
     HUGGINGFACE_DNS_AVAILABLE = False
@@ -339,16 +339,17 @@ def choose_best_fallback_candidate(candidates: list[str], default_label: str) ->
 
 def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Optional[str]]:
     if not HUGGINGFACE_DNS_AVAILABLE:
-        return [], "HuggingFace host is unreachable in current network"
+        return [], "HuggingFace router host is unreachable in current network"
     if not HUGGINGFACE_FOOD_MODELS:
         return [], None
+    if not HUGGINGFACE_API_TOKEN:
+        return [], "HUGGINGFACE_API_TOKEN is not configured"
     headers = {"Content-Type": "application/octet-stream"}
-    if HUGGINGFACE_API_TOKEN:
-        headers["Authorization"] = f"Bearer {HUGGINGFACE_API_TOKEN}"
+    headers["Authorization"] = f"Bearer {HUGGINGFACE_API_TOKEN}"
 
     last_error = None
     for model_name in HUGGINGFACE_FOOD_MODELS:
-        endpoint = f"https://api-inference.huggingface.co/models/{model_name}"
+        endpoint = f"https://router.huggingface.co/hf-inference/models/{model_name}"
         try:
             response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=20)
             if response.status_code == 503:
@@ -779,6 +780,7 @@ def create_app() -> Flask:
                 "recognitionProviders": {
                     "huggingFaceConfigured": True,
                     "huggingFaceDnsResolved": HUGGINGFACE_DNS_AVAILABLE,
+                    "huggingFaceTokenConfigured": bool(HUGGINGFACE_API_TOKEN),
                     "openAIVisionConfigured": bool(OPENAI_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
