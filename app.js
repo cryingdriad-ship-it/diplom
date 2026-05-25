@@ -20,18 +20,23 @@ const LOCAL_FOOD_DB = [
 ];
 
 const landingViewEl = byId("landingView");
-const authCardEl = byId("authCard");
+const landingHomeScreenEl = byId("landingHomeScreen");
+const landingRegisterScreenEl = byId("landingRegisterScreen");
+const landingLoginScreenEl = byId("landingLoginScreen");
 const dashboardViewEl = byId("dashboardView");
 const appMessageEl = byId("appMessage");
 const modelStatusEl = byId("model-status");
 const navSignInButtonEl = byId("navSignInButton");
 const navGetStartedButtonEl = byId("navGetStartedButton");
+const heroRegisterButtonEl = byId("heroRegisterButton");
 const registerFormEl = byId("registerForm");
 const registerEmailEl = byId("registerEmail");
 const registerPasswordEl = byId("registerPassword");
+const switchToLoginButtonEl = byId("switchToLoginButton");
 const loginFormEl = byId("loginForm");
 const loginEmailEl = byId("loginEmail");
 const loginPasswordEl = byId("loginPassword");
+const switchToRegisterButtonEl = byId("switchToRegisterButton");
 const guestModeButtonEl = byId("guestModeButton");
 const accountEmailEl = byId("accountEmail");
 const sessionModeBadgeEl = byId("sessionModeBadge");
@@ -78,7 +83,7 @@ let currentDayEntries = [];
 let currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 let deferredPrompt = null;
 let sessionMode = "anonymous"; // anonymous | guest | user
-let authPanelOpen = false;
+let landingScreen = "home"; // home | register | login
 let localDiaryEntries = [];
 let firebaseAuthApi = null;
 let firebaseAuth = null;
@@ -160,7 +165,9 @@ function renderView() {
   } else {
     landingViewEl.classList.remove("hidden");
     dashboardViewEl.classList.add("hidden");
-    authCardEl.classList.toggle("hidden", !authPanelOpen);
+    landingHomeScreenEl.classList.toggle("hidden", landingScreen !== "home");
+    landingRegisterScreenEl.classList.toggle("hidden", landingScreen !== "register");
+    landingLoginScreenEl.classList.toggle("hidden", landingScreen !== "login");
   }
 
   switchToAccountButtonEl.classList.toggle("hidden", !isGuestMode());
@@ -177,14 +184,22 @@ function renderView() {
   updateAnalyzeButtonState();
 }
 
-function showAuthPanel() {
+function showLandingScreen(screen) {
   if (isGuestMode()) {
     sessionMode = "anonymous";
     currentUser = null;
   }
-  authPanelOpen = true;
+  landingScreen = screen;
   renderView();
-  authCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+  landingViewEl.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function showRegisterScreen() {
+  showLandingScreen("register");
+}
+
+function showLoginScreen() {
+  showLandingScreen("login");
 }
 
 function updateAnalyzeButtonState() {
@@ -468,6 +483,7 @@ async function analyzeImage() {
     const fallbackLabel = predictions[0]?.className || "unknown food";
     let labels = [fallbackLabel];
     let provider = "MobileNet";
+    let providerDiagnostics = "";
 
     try {
       const recognition = await api("/api/food/recognize", {
@@ -476,6 +492,7 @@ async function analyzeImage() {
       });
       labels = recognition.labels?.length ? recognition.labels : [fallbackLabel];
       provider = recognition.provider || provider;
+      providerDiagnostics = recognition.providerDiagnostics || "";
     } catch {}
 
     renderPredictionChips(labels);
@@ -502,7 +519,8 @@ async function analyzeImage() {
     };
     setNutritionResult(currentAnalysis);
     saveEntryButtonEl.disabled = false;
-    setMessage("Процес завершено. Натисніть «Додати у щоденник».");
+    const debugNote = providerDiagnostics ? ` Причина fallback: ${providerDiagnostics}.` : "";
+    setMessage(`Процес завершено. Натисніть «Додати у щоденник».${debugNote}`);
   } catch (error) {
     currentAnalysis = null;
     setNutritionResult(null);
@@ -574,7 +592,7 @@ async function submitRegister(event) {
     await localAuth(email, password, true);
   }
 
-  authPanelOpen = false;
+  landingScreen = "home";
   localDiaryEntries = readLocalDiary();
   registerFormEl.reset();
   renderView();
@@ -596,7 +614,7 @@ async function submitLogin(event) {
     await localAuth(email, password, false);
   }
 
-  authPanelOpen = false;
+  landingScreen = "home";
   localDiaryEntries = readLocalDiary();
   loginFormEl.reset();
   renderView();
@@ -608,7 +626,7 @@ async function submitLogin(event) {
 function enterGuestMode() {
   sessionMode = "guest";
   currentUser = null;
-  authPanelOpen = false;
+  landingScreen = "home";
   localDiaryEntries = readLocalDiary();
   renderView();
   loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
@@ -623,7 +641,7 @@ async function logout() {
   await api("/api/auth/logout", { method: "POST" }).catch(() => {});
   currentUser = null;
   sessionMode = "anonymous";
-  authPanelOpen = true;
+  landingScreen = "home";
   currentDayEntries = [];
   currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
   renderView();
@@ -684,7 +702,7 @@ async function checkAuth() {
     }
   }
 
-  authPanelOpen = !canUseDashboard();
+  landingScreen = "home";
   localDiaryEntries = canUseDashboard() ? readLocalDiary() : [];
   renderView();
   if (canUseDashboard()) {
@@ -694,8 +712,11 @@ async function checkAuth() {
 }
 
 function wireEvents() {
-  navSignInButtonEl.addEventListener("click", showAuthPanel);
-  navGetStartedButtonEl.addEventListener("click", showAuthPanel);
+  navSignInButtonEl.addEventListener("click", showLoginScreen);
+  navGetStartedButtonEl.addEventListener("click", showRegisterScreen);
+  heroRegisterButtonEl.addEventListener("click", showRegisterScreen);
+  switchToLoginButtonEl.addEventListener("click", showLoginScreen);
+  switchToRegisterButtonEl.addEventListener("click", showRegisterScreen);
 
   registerFormEl.addEventListener("submit", (event) => {
     submitRegister(event).catch((error) => setMessage(error.message, true));
@@ -705,7 +726,7 @@ function wireEvents() {
   });
   guestModeButtonEl.addEventListener("click", enterGuestMode);
 
-  switchToAccountButtonEl.addEventListener("click", showAuthPanel);
+  switchToAccountButtonEl.addEventListener("click", showLoginScreen);
   logoutButtonEl.addEventListener("click", () => {
     logout().catch((error) => setMessage(error.message, true));
   });
@@ -761,7 +782,7 @@ async function init() {
   await initFirebase();
   await checkAuth();
   await loadModel();
-  setMessage("Нажмите Sign In для открытия окна регистрации/входа или выберите гостевой режим.");
+  setMessage("Оберіть «Зареєструватись» або «Продовжити як гість» для старту.");
 }
 
 init().catch((error) => {

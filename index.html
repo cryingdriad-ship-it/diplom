@@ -10,58 +10,76 @@
   </head>
   <body>
     <main class="app-shell">
-      <header class="top-nav">
-        <div class="brand">MyFitnessPal</div>
-        <nav class="menu">
-          <a href="#how-it-works">How It Works</a>
-          <a href="#pricing">Pricing</a>
-          <a href="#blog">Blog</a>
-        </nav>
-        <div class="nav-actions">
-          <button id="navSignInButton" class="btn ghost" type="button">Sign in</button>
-          <button id="navGetStartedButton" class="btn primary" type="button">Get started</button>
+      <section id="landingView" class="landing-shell">
+        <header class="top-nav">
+          <div class="brand">
+            <span class="brand-logo" aria-hidden="true"></span>
+            <span>NUTRIWELL</span>
+          </div>
+          <nav class="menu">
+            <a href="#how-it-works">Дізнатись більше</a>
+            <a href="#contacts">Контакти</a>
+          </nav>
+          <div class="nav-actions">
+            <button id="navSignInButton" class="btn ghost nav-hidden" type="button">Вхід</button>
+            <button id="navGetStartedButton" class="btn accent" type="button">Зареєструватись</button>
+          </div>
+        </header>
+
+        <div class="landing-split">
+          <section class="landing-left">
+            <section id="landingHomeScreen" class="landing-screen">
+              <h1 class="hero-title">
+                <span class="title-line delay-0">Досягайте цілей</span>
+                <span class="title-line delay-1">легше з розумним</span>
+                <span class="title-line delay-2">контролем калорій.</span>
+              </h1>
+              <div class="hero-actions">
+                <button id="heroRegisterButton" class="btn accent" type="button">Зареєструватись</button>
+                <button id="guestModeButton" class="btn outline-accent" type="button">Продовжити як гість</button>
+              </div>
+            </section>
+
+            <section id="landingRegisterScreen" class="landing-screen hidden">
+              <h2 class="auth-title">Вітаємо на NUTRIWELL👋</h2>
+              <h3 class="auth-subtitle">Реєстрація</h3>
+              <form id="registerForm" class="auth-form">
+                <label>Email:
+                  <input id="registerEmail" type="email" required />
+                </label>
+                <label>Пароль:
+                  <input id="registerPassword" type="password" minlength="6" required />
+                </label>
+                <button class="btn accent" type="submit">Зареєструватись</button>
+              </form>
+              <p class="switch-copy">
+                Вже є наш акаунт?
+                <button id="switchToLoginButton" class="switch-link" type="button">Вхід</button>
+              </p>
+            </section>
+
+            <section id="landingLoginScreen" class="landing-screen hidden">
+              <h2 class="auth-title">Вітаємо на NUTRIWELL👋</h2>
+              <h3 class="auth-subtitle">Вхід</h3>
+              <form id="loginForm" class="auth-form">
+                <label>Email:
+                  <input id="loginEmail" type="email" required />
+                </label>
+                <label>Пароль:
+                  <input id="loginPassword" type="password" required />
+                </label>
+                <button class="btn accent" type="submit">Увійти в акаунт</button>
+              </form>
+              <p class="switch-copy">
+                Нема нашого акаунта?
+                <button id="switchToRegisterButton" class="switch-link" type="button">Зареєструватись</button>
+              </p>
+            </section>
+          </section>
+          <aside class="landing-right" aria-hidden="true"></aside>
         </div>
-      </header>
 
-      <section id="landingView" class="hero">
-        <h1>
-          AI-Powered Nutrition Tracking
-          <span>for your daily life</span>
-        </h1>
-        <div class="hero-card">
-          <div class="upload-box">
-            <p class="upload-title">Upload Food Photo</p>
-            <p class="upload-subtitle">Drag an image or click to browse</p>
-            <input id="image-input" type="file" accept="image/*" capture="environment" />
-            <button id="startProcessButton" class="btn primary" type="button" disabled>Запустити процес</button>
-            <img id="image-preview" alt="Попередній перегляд страви" hidden />
-          </div>
-        </div>
-
-        <section id="authCard" class="auth-card hidden">
-          <h2>Увійдіть або створіть акаунт</h2>
-          <p class="status">
-            Після входу ви переходите в робочий екран щоденника.
-          </p>
-          <div class="auth-grid">
-            <form id="registerForm" class="panel">
-              <h3>Реєстрація</h3>
-              <label>Email <input id="registerEmail" type="email" required /></label>
-              <label>Пароль (мін. 6 символів) <input id="registerPassword" type="password" minlength="6" required /></label>
-              <button class="btn primary" type="submit">Створити акаунт</button>
-            </form>
-
-            <form id="loginForm" class="panel">
-              <h3>Вхід</h3>
-              <label>Email <input id="loginEmail" type="email" required /></label>
-              <label>Пароль <input id="loginPassword" type="password" required /></label>
-              <button class="btn primary" type="submit">Увійти</button>
-            </form>
-          </div>
-          <div class="auth-actions">
-            <button id="guestModeButton" class="btn ghost" type="button">Увійти як гість</button>
-          </div>
-        </section>
+        <section id="authCard" class="hidden" aria-hidden="true"></section>
       </section>
 
       <section id="dashboardView" class="hidden">
@@ -165,12 +183,16 @@
       </section>
 
       <p id="appMessage" class="footer">Система готова до роботи.</p>
-      <p id="blog" class="status center">Demo MVP • Backend: Flask + SQLite • AI: Clarifai/MobileNet + USDA/FatSecret/OpenFoodFacts</p>
+      <p id="blog" class="status center" data-contact="true">Demo MVP • Backend: Flask + SQLite • AI: Spoonacular/Clarifai/MobileNet + USDA/FatSecret/OpenFoodFacts</p>
+      <div id="contacts" class="hidden"></div>
+      <input id="image-input" class="hidden" type="file" accept="image/*" capture="environment" />
+      <button id="startProcessButton" class="hidden" type="button" disabled>Запустити процес</button>
+      <img id="image-preview" alt="Попередній перегляд страви" hidden />
     </main>
 
     <script src="./firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=6"></script>
+    <script type="module" src="./app.js?v=7"></script>
   </body>
 </html>
