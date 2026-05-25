@@ -16,14 +16,38 @@ from google.oauth2 import id_token as google_id_token
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_local_env_file(path: str) -> None:
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if not key:
+                    continue
+                os.environ.setdefault(key, value.strip().strip("\"'"))
+    except OSError:
+        return
+
+
+load_local_env_file(os.path.join(BASE_DIR, ".env"))
 DB_PATH = os.getenv("MYFITNESSPAL_DB_PATH", os.path.join(BASE_DIR, "myfitnesspal.db"))
 
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
 FATSECRET_CLIENT_ID = os.getenv("FATSECRET_CLIENT_ID", "").strip()
 FATSECRET_CLIENT_SECRET = os.getenv("FATSECRET_CLIENT_SECRET", "").strip()
-EDAMAM_APP_ID = os.getenv("EDAMAM_APP_ID", "").strip()
-EDAMAM_APP_KEY = os.getenv("EDAMAM_APP_KEY", "").strip()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+EDAMAM_APP_ID = os.getenv("EDAMAM_APP_ID", os.getenv("EDAMAM_ID", "")).strip()
+EDAMAM_APP_KEY = os.getenv("EDAMAM_APP_KEY", os.getenv("EDAMAM_KEY", "")).strip()
+OPENAI_API_KEY = os.getenv(
+    "OPENAI_API_KEY",
+    os.getenv("OPENAI_KEY", os.getenv("OPENAI_TOKEN", "")),
+).strip()
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
 CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
@@ -249,7 +273,7 @@ def response_error_text(response: requests.Response) -> str:
 
 def fetch_openai_food_insights(image_bytes: bytes) -> tuple[list[str], Optional[float], Optional[str]]:
     if not OPENAI_API_KEY:
-        return [], None, "OPENAI_API_KEY is not configured"
+        return [], None, None
     try:
         image_data_url = f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
         response = requests.post(
@@ -700,6 +724,7 @@ def create_app() -> Flask:
 
         image_bytes = extract_image_bytes(image_data)
         if image_bytes:
+            openai_configured = bool(OPENAI_API_KEY)
             labels, estimated_grams, openai_error = fetch_openai_food_insights(image_bytes)
             if labels:
                 provider = "OpenAI Vision"
@@ -707,9 +732,9 @@ def create_app() -> Flask:
                 labels = fetch_clarifai_labels(image_bytes)
                 if labels:
                     provider = "Clarifai food model"
-                    diagnostics = openai_error or ""
+                    diagnostics = openai_error if (openai_error and openai_configured) else ""
                 else:
-                    diagnostics = openai_error or "No vision labels returned"
+                    diagnostics = openai_error or ""
 
         if not labels and fallback_label:
             labels = [fallback_label]
@@ -718,7 +743,7 @@ def create_app() -> Flask:
             labels = ["unknown food"]
 
         provider_text = provider
-        if provider != "OpenAI Vision" and diagnostics:
+        if diagnostics:
             provider_text = f"{provider} ({diagnostics})"
         return jsonify(
             {
