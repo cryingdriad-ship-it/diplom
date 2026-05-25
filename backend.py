@@ -5,6 +5,7 @@ import json
 import os
 import re
 import secrets
+import socket
 import sqlite3
 from dataclasses import dataclass
 from typing import Optional
@@ -58,6 +59,11 @@ HUGGINGFACE_FOOD_MODELS = [
     ).split(",")
     if model.strip()
 ]
+try:
+    socket.gethostbyname("api-inference.huggingface.co")
+    HUGGINGFACE_DNS_AVAILABLE = True
+except OSError:
+    HUGGINGFACE_DNS_AVAILABLE = False
 CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
 CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
@@ -301,7 +307,39 @@ def estimate_portion_grams(label: str) -> float:
     return 200.0
 
 
+def is_generic_non_food_label(label: str) -> bool:
+    text = (label or "").lower()
+    generic = (
+        "plate",
+        "dish",
+        "table",
+        "cup",
+        "spoon",
+        "fork",
+        "knife",
+        "bowl",
+        "container",
+        "restaurant",
+        "kitchen",
+        "lunch",
+        "dinner",
+        "meal",
+        "food",
+    )
+    return any(token in text for token in generic)
+
+
+def choose_best_fallback_candidate(candidates: list[str], default_label: str) -> str:
+    normalized = unique_labels(candidates, limit=8)
+    for candidate in normalized:
+        if not is_generic_non_food_label(candidate):
+            return candidate
+    return normalize_label(default_label or (normalized[0] if normalized else "unknown food"))
+
+
 def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Optional[str]]:
+    if not HUGGINGFACE_DNS_AVAILABLE:
+        return [], "HuggingFace host is unreachable in current network"
     if not HUGGINGFACE_FOOD_MODELS:
         return [], None
     headers = {"Content-Type": "application/octet-stream"}
@@ -740,6 +778,7 @@ def create_app() -> Flask:
                 },
                 "recognitionProviders": {
                     "huggingFaceConfigured": True,
+                    "huggingFaceDnsResolved": HUGGINGFACE_DNS_AVAILABLE,
                     "openAIVisionConfigured": bool(OPENAI_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
@@ -784,6 +823,12 @@ def create_app() -> Flask:
     def recognize_food():
         payload = request.get_json(silent=True) or {}
         fallback_label = normalize_label(payload.get("fallbackLabel", ""))
+        fallback_candidates_raw = payload.get("fallbackCandidates", [])
+        fallback_candidates = (
+            [normalize_label(item) for item in fallback_candidates_raw if isinstance(item, str)]
+            if isinstance(fallback_candidates_raw, list)
+            else []
+        )
         image_data = payload.get("imageData", "")
         labels = []
         provider = "MobileNet fallback"
@@ -809,8 +854,9 @@ def create_app() -> Flask:
                         diagnostics = openai_error or hf_error or ""
 
         if not labels and fallback_label:
-            labels = [fallback_label]
-            estimated_grams = estimate_portion_grams(fallback_label)
+            selected_fallback = choose_best_fallback_candidate(fallback_candidates, fallback_label)
+            labels = [selected_fallback]
+            estimated_grams = estimate_portion_grams(selected_fallback)
 
         if not labels:
             labels = ["unknown food"]

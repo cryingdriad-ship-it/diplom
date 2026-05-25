@@ -18,6 +18,33 @@ const LOCAL_FOOD_DB = [
   { keys: ["rice"], calories: 205, protein: 4.3, fat: 0.4, carbs: 45, name: "Cooked rice" },
   { keys: ["chicken"], calories: 220, protein: 40, fat: 5, carbs: 0, name: "Chicken breast" }
 ];
+const FOOD_HINT_KEYWORDS = [
+  "pizza",
+  "burger",
+  "cheeseburger",
+  "hotdog",
+  "sandwich",
+  "salad",
+  "pasta",
+  "spaghetti",
+  "noodle",
+  "rice",
+  "chicken",
+  "steak",
+  "beef",
+  "fish",
+  "salmon",
+  "sushi",
+  "soup",
+  "fries",
+  "cake",
+  "bread",
+  "egg",
+  "omelet",
+  "apple",
+  "banana",
+  "orange"
+];
 
 const landingViewEl = byId("landingView");
 const landingHomeScreenEl = byId("landingHomeScreen");
@@ -250,6 +277,21 @@ function updateAnalyzeButtonState() {
   const canAnalyze = !!currentImageData;
   startProcessButtonEl.disabled = !canAnalyze;
   analyzeButtonEl.disabled = !canAnalyze || !canUseDashboard();
+}
+
+function deriveFallbackCandidates(predictions = []) {
+  const seen = new Set();
+  const result = [];
+  for (const prediction of predictions) {
+    const className = String(prediction?.className || "").toLowerCase();
+    if (!className) continue;
+    const matched = FOOD_HINT_KEYWORDS.find((keyword) => className.includes(keyword));
+    const label = matched || className.split(",")[0].trim();
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    result.push(label);
+  }
+  return result.slice(0, 5);
 }
 
 function setInputFile(file) {
@@ -569,9 +611,10 @@ async function analyzeImage() {
   try {
     let predictions = [];
     if (model) {
-      predictions = await model.classify(imagePreviewEl, 3);
+      predictions = await model.classify(imagePreviewEl, 5);
     }
-    const fallbackLabel = predictions[0]?.className || "unknown food";
+    const fallbackCandidates = deriveFallbackCandidates(predictions);
+    const fallbackLabel = fallbackCandidates[0] || predictions[0]?.className || "unknown food";
     let labels = [fallbackLabel];
     let provider = "MobileNet";
     let providerDiagnostics = "";
@@ -580,7 +623,7 @@ async function analyzeImage() {
     try {
       const recognition = await api("/api/food/recognize", {
         method: "POST",
-        body: JSON.stringify({ imageData: currentImageData, fallbackLabel })
+        body: JSON.stringify({ imageData: currentImageData, fallbackLabel, fallbackCandidates })
       });
       labels = recognition.labels?.length ? recognition.labels : [fallbackLabel];
       provider = recognition.provider || provider;
