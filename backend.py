@@ -742,13 +742,10 @@ def create_app() -> Flask:
         if not labels:
             labels = ["unknown food"]
 
-        provider_text = provider
-        if diagnostics:
-            provider_text = f"{provider} ({diagnostics})"
         return jsonify(
             {
                 "labels": labels,
-                "provider": provider_text,
+                "provider": provider,
                 "providerDiagnostics": diagnostics,
                 "estimatedGrams": round(estimated_grams, 1) if estimated_grams else None,
             }
