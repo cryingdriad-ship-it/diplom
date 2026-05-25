@@ -42,9 +42,9 @@
             </section>
 
             <section id="landingRegisterScreen" class="landing-screen hidden">
-              <h2 class="auth-title">Вітаємо на NUTRIWELL👋</h2>
-              <h3 class="auth-subtitle">Реєстрація</h3>
-              <form id="registerForm" class="auth-form">
+              <h2 class="auth-title anim-text">Вітаємо на NUTRIWELL👋</h2>
+              <h3 class="auth-subtitle anim-text">Реєстрація</h3>
+              <form id="registerForm" class="auth-form anim-block">
                 <label>Email:
                   <input id="registerEmail" type="email" required />
                 </label>
@@ -53,16 +53,16 @@
                 </label>
                 <button class="btn accent" type="submit">Зареєструватись</button>
               </form>
-              <p class="switch-copy">
+              <p class="switch-copy anim-text">
                 Вже є наш акаунт?
                 <button id="switchToLoginButton" class="switch-link" type="button">Вхід</button>
               </p>
             </section>
 
             <section id="landingLoginScreen" class="landing-screen hidden">
-              <h2 class="auth-title">Вітаємо на NUTRIWELL👋</h2>
-              <h3 class="auth-subtitle">Вхід</h3>
-              <form id="loginForm" class="auth-form">
+              <h2 class="auth-title anim-text">Вітаємо на NUTRIWELL👋</h2>
+              <h3 class="auth-subtitle anim-text">Вхід</h3>
+              <form id="loginForm" class="auth-form anim-block">
                 <label>Email:
                   <input id="loginEmail" type="email" required />
                 </label>
@@ -71,7 +71,7 @@
                 </label>
                 <button class="btn accent" type="submit">Увійти в акаунт</button>
               </form>
-              <p class="switch-copy">
+              <p class="switch-copy anim-text">
                 Нема нашого акаунта?
                 <button id="switchToRegisterButton" class="switch-link" type="button">Зареєструватись</button>
               </p>
@@ -81,16 +81,16 @@
               <article class="info-card">
                 <header class="info-header">
                   <span class="brand-logo info-logo" aria-hidden="true"></span>
-                  <h2>NUTRIWELL | ПРО НАС</h2>
+                  <h2 class="anim-text">NUTRIWELL | ПРО НАС</h2>
                 </header>
-                <p>
+                <p class="anim-text">
                   NUTRIWELL — твій інноваційний щоденник харчування, який працює за допомогою штучного інтелекту.
                 </p>
-                <p>
+                <p class="anim-text">
                   Більше ніяких складних ручних записів: просто зроби фото своєї їжі, і наша система миттєво
                   проаналізує її склад та підрахує калорії.
                 </p>
-                <p>
+                <p class="anim-text">
                   Завдяки NUTRIWELL, ведення щоденника стає інтуїтивно зрозумілим, допомагаючи вам ефективніше
                   відстежувати прогрес та досягати поставлених цілей у харчуванні.
                 </p>
@@ -101,13 +101,13 @@
               <article class="info-card contact-card">
                 <header class="info-header">
                   <span class="brand-logo info-logo" aria-hidden="true"></span>
-                  <h2>NUTRIWELL | КОНТАКТИ</h2>
+                  <h2 class="anim-text">NUTRIWELL | КОНТАКТИ</h2>
                 </header>
-                <p class="contact-line">ВИКОНАЛА</p>
-                <p class="contact-line">СТУДЕНТКА КП-23 БАЛІНА АЛІНА</p>
-                <p class="contact-line contact-gap">ДЛЯ ЗВ’ЯЗКУ ЗІ МНОЮ:</p>
-                <p class="contact-link">📧 ALINABALINA11@GMAIL.COM</p>
-                <p class="contact-link">☎️ +380509286517</p>
+                <p class="contact-line anim-text">ВИКОНАЛА</p>
+                <p class="contact-line anim-text">СТУДЕНТКА КП-23 БАЛІНА АЛІНА</p>
+                <p class="contact-line contact-gap anim-text">ДЛЯ ЗВ’ЯЗКУ ЗІ МНОЮ:</p>
+                <p class="contact-link anim-text">📧 ALINABALINA11@GMAIL.COM</p>
+                <p class="contact-link anim-text">☎️ +380509286517</p>
               </article>
             </section>
           </section>
@@ -117,34 +117,88 @@
         <section id="authCard" class="hidden" aria-hidden="true"></section>
       </section>
 
-      <section id="dashboardView" class="hidden">
-        <article class="account-bar panel">
-          <div>
-            <h2>Робочий екран</h2>
-            <p id="accountEmail" class="status">—</p>
-            <p id="sessionModeBadge" class="status">Не авторизовано</p>
+      <section id="dashboardView" class="hidden dashboard-shell">
+        <header class="top-nav dashboard-nav">
+          <button id="dashboardLogoHomeButton" class="brand brand-button" type="button" aria-label="На головну сторінку">
+            <span class="brand-logo" aria-hidden="true"></span>
+            <span>NUTRIWELL</span>
+          </button>
+          <nav class="menu">
+            <button id="dashboardInfoButton" class="menu-link" type="button">Дізнатись більше</button>
+            <button id="dashboardContactsButton" class="menu-link" type="button">Контакти</button>
+          </nav>
+          <div class="nav-actions">
+            <button id="switchToAccountButton" class="btn ghost hidden motion-cta" type="button">Увійти в акаунт</button>
+            <button id="logoutButton" class="btn ghost motion-cta" type="button">Вийти</button>
+            <button id="install-button" class="btn ghost motion-cta" hidden type="button">Встановити застосунок</button>
           </div>
-          <div class="controls">
-            <button id="switchToAccountButton" class="btn ghost hidden" type="button">Увійти в акаунт</button>
-            <button id="logoutButton" class="btn ghost" type="button">Вийти</button>
-            <button id="install-button" class="btn ghost" hidden type="button">Встановити застосунок</button>
-          </div>
-        </article>
+        </header>
 
-        <section class="grid" id="how-it-works">
-          <article class="panel">
-            <h2>Аналіз фото</h2>
+        <section class="panel glass-card stats-hero">
+          <div class="gauge-block">
+            <div id="calorieGauge" class="calorie-gauge">
+              <div class="calorie-gauge-center">
+                <strong id="gauge-calories">0</strong>
+                <span>Kcal</span>
+              </div>
+            </div>
+          </div>
+          <div class="quick-stats">
+            <article class="mini-card lilac">
+              <p>Білки</p>
+              <strong id="stat-protein">0 грам</strong>
+            </article>
+            <article class="mini-card sand">
+              <p>До цілі</p>
+              <strong id="stat-to-target">0 kcal</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="dashboard-grid" id="how-it-works">
+          <article class="panel glass-card">
+            <h2>Аналіз фото:</h2>
             <p class="status">Після вибору фото натисніть «AI-аналіз».</p>
             <input id="dashboard-photo-input" type="file" accept="image/*" capture="environment" />
             <div class="controls">
-              <button id="analyze-button" class="btn primary" disabled type="button">AI-аналіз</button>
-              <button id="clear-button" class="btn ghost" type="button">Очистити</button>
+              <button id="analyze-button" class="btn accent motion-cta" disabled type="button">AI-аналіз</button>
+              <button id="clear-button" class="btn outline-accent motion-cta" type="button">Очистити</button>
             </div>
             <p id="model-status" class="status">Завантаження AI-моделі...</p>
           </article>
 
-          <article class="panel">
-            <h2>Налаштування запису</h2>
+          <article class="panel glass-card">
+            <h2>Результат розпізнавання:</h2>
+            <div id="prediction-chips" class="chips"></div>
+            <div class="metrics compact">
+              <div class="metric"><span>Страва</span><strong id="guessed-food">—</strong></div>
+              <div class="metric"><span>Джерело даних</span><strong id="nutrition-source">—</strong></div>
+              <div class="metric"><span>Порція (г)</span><strong id="detected-grams">—</strong></div>
+              <div class="metric"><span>Калорії</span><strong id="calories">—</strong></div>
+              <div class="metric"><span>Білки</span><strong id="proteins">—</strong></div>
+              <div class="metric"><span>Жири</span><strong id="fats">—</strong></div>
+              <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
+              <div class="metric"><span>AI-впевненість</span><strong id="confidence">—</strong></div>
+            </div>
+          </article>
+
+          <article class="panel glass-card">
+            <h2>Щоденник за дату:</h2>
+            <div class="metrics">
+              <div class="metric"><span>Спожито</span><strong id="total-calories">0 ккал</strong></div>
+              <div class="metric"><span>Ціль</span><strong id="target-calories">2000 ккал</strong></div>
+              <div class="metric"><span>Виконання</span><strong id="target-percent">0%</strong></div>
+              <div class="metric"><span>Б/Ж/В</span><strong id="macro-ratio">0 / 0 / 0 г</strong></div>
+            </div>
+            <progress id="target-progress" max="100" value="0"></progress>
+            <p id="empty-log" class="status">Записів за цю дату немає.</p>
+            <ul id="daily-list" class="daily-list"></ul>
+          </article>
+
+          <article class="panel glass-card soft">
+            <h2>Редагувати розпізнавання:</h2>
+            <p id="accountEmail" class="status">—</p>
+            <p id="sessionModeBadge" class="status">Не авторизовано</p>
             <div class="controls column">
               <label>
                 Ціль:
@@ -168,47 +222,15 @@
               </label>
             </div>
             <div class="controls">
-              <button id="refresh-day" class="btn ghost" type="button">Оновити день</button>
-              <button id="clear-day" class="btn ghost" type="button">Очистити день</button>
+              <button id="save-entry" class="btn accent motion-cta" disabled type="button">Додати у щоденник</button>
+              <button id="refresh-day" class="btn outline-accent motion-cta" type="button">Оновити день</button>
+              <button id="clear-day" class="btn outline-accent motion-cta" type="button">Очистити день</button>
             </div>
           </article>
         </section>
 
-        <section class="grid">
-          <article class="panel">
-            <h2>Результат розпізнавання</h2>
-            <div id="prediction-chips" class="chips"></div>
-            <div class="metrics">
-              <div class="metric"><span>Страва</span><strong id="guessed-food">—</strong></div>
-              <div class="metric"><span>Джерело даних</span><strong id="nutrition-source">—</strong></div>
-              <div class="metric"><span>Порція (г)</span><strong id="detected-grams">—</strong></div>
-              <div class="metric"><span>Калорії</span><strong id="calories">—</strong></div>
-              <div class="metric"><span>Білки</span><strong id="proteins">—</strong></div>
-              <div class="metric"><span>Жири</span><strong id="fats">—</strong></div>
-              <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
-              <div class="metric"><span>AI-впевненість</span><strong id="confidence">—</strong></div>
-            </div>
-            <div class="controls">
-              <button id="save-entry" class="btn primary" disabled type="button">Додати у щоденник</button>
-            </div>
-          </article>
-
-          <article class="panel">
-            <h2>Щоденник за дату</h2>
-            <div class="metrics">
-              <div class="metric"><span>Спожито</span><strong id="total-calories">0 ккал</strong></div>
-              <div class="metric"><span>Ціль</span><strong id="target-calories">2000 ккал</strong></div>
-              <div class="metric"><span>Виконання</span><strong id="target-percent">0%</strong></div>
-              <div class="metric"><span>Б/Ж/В</span><strong id="macro-ratio">0 / 0 / 0 г</strong></div>
-            </div>
-            <progress id="target-progress" max="100" value="0"></progress>
-            <p id="empty-log" class="status">Записів за цю дату немає.</p>
-            <ul id="daily-list" class="daily-list"></ul>
-          </article>
-        </section>
-
-        <section class="panel">
-          <h2 id="pricing">Історія калорійності</h2>
+        <section class="panel glass-card history-panel">
+          <h2 id="pricing">Історія калорійності:</h2>
           <div class="metrics">
             <div class="metric"><span>Середнє за 7 днів</span><strong id="weekly-average">0 ккал</strong></div>
             <div class="metric"><span>Період історії</span><strong>Останні 30 днів</strong></div>
@@ -228,6 +250,6 @@
     <script src="./firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=8"></script>
+    <script type="module" src="./app.js?v=9"></script>
   </body>
 </html>

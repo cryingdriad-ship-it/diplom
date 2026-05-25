@@ -25,6 +25,13 @@ const landingRegisterScreenEl = byId("landingRegisterScreen");
 const landingLoginScreenEl = byId("landingLoginScreen");
 const landingInfoScreenEl = byId("landingInfoScreen");
 const landingContactsScreenEl = byId("landingContactsScreen");
+const dashboardLogoHomeButtonEl = byId("dashboardLogoHomeButton");
+const dashboardInfoButtonEl = byId("dashboardInfoButton");
+const dashboardContactsButtonEl = byId("dashboardContactsButton");
+const calorieGaugeEl = byId("calorieGauge");
+const gaugeCaloriesEl = byId("gauge-calories");
+const statProteinEl = byId("stat-protein");
+const statToTargetEl = byId("stat-to-target");
 const dashboardViewEl = byId("dashboardView");
 const appMessageEl = byId("appMessage");
 const modelStatusEl = byId("model-status");
@@ -90,6 +97,7 @@ let currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 let deferredPrompt = null;
 let sessionMode = "anonymous"; // anonymous | guest | user
 let landingScreen = "home"; // home | register | login | info | contacts
+let forceLandingView = false;
 let localDiaryEntries = [];
 let firebaseAuthApi = null;
 let firebaseAuth = null;
@@ -124,8 +132,12 @@ function isServerUser() {
   return isAuthenticatedMode() && Number.isInteger(currentUser?.id);
 }
 
-function canUseDashboard() {
+function hasSessionAccess() {
   return isGuestMode() || isAuthenticatedMode();
+}
+
+function canUseDashboard() {
+  return !forceLandingView && hasSessionAccess();
 }
 
 function getLocalDiaryKey() {
@@ -196,10 +208,7 @@ function renderView() {
 }
 
 function showLandingScreen(screen) {
-  if (isGuestMode()) {
-    sessionMode = "anonymous";
-    currentUser = null;
-  }
+  forceLandingView = true;
   landingScreen = screen;
   renderView();
   landingViewEl.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -210,6 +219,11 @@ function showRegisterScreen() {
 }
 
 function showLoginScreen() {
+  if (forceLandingView && hasSessionAccess()) {
+    forceLandingView = false;
+    renderView();
+    return;
+  }
   showLandingScreen("login");
 }
 
@@ -388,11 +402,17 @@ function renderTotals() {
   const target = CALORIE_TARGETS[goalSelectEl.value] || CALORIE_TARGETS.maintain;
   const calories = round(currentDayTotals.calories);
   const percent = target ? Math.min(200, round((calories / target) * 100)) : 0;
+  const gaugePercent = Math.min(100, Math.max(0, percent));
+  const delta = round(target - calories);
   totalCaloriesEl.textContent = `${calories} ккал`;
   targetCaloriesEl.textContent = `${target} ккал`;
   targetPercentEl.textContent = `${percent}%`;
   targetProgressEl.value = Math.min(percent, 100);
   macroRatioEl.textContent = `${round(currentDayTotals.protein)} / ${round(currentDayTotals.fat)} / ${round(currentDayTotals.carbs)} г`;
+  gaugeCaloriesEl.textContent = `${Math.round(calories)}`;
+  calorieGaugeEl.style.setProperty("--gauge", String(gaugePercent));
+  statProteinEl.textContent = `${round(currentDayTotals.protein)} грам`;
+  statToTargetEl.textContent = delta >= 0 ? `${delta} kcal` : `+${Math.abs(delta)} kcal`;
 }
 
 function renderDiary(entries) {
@@ -632,7 +652,7 @@ async function submitRegister(event) {
   event.preventDefault();
   const email = registerEmailEl.value.trim().toLowerCase();
   const password = registerPasswordEl.value;
-  if (!email || password.length < 6) throw new Error("Введите корректный email и пароль (мин. 6 символов).");
+  if (!email || password.length < 6) throw new Error("Вкажіть коректний email і пароль (мінімум 6 символів).");
 
   try {
     if (firebaseAuth && firebaseAuthApi) {
@@ -646,6 +666,7 @@ async function submitRegister(event) {
   }
 
   landingScreen = "home";
+  forceLandingView = false;
   localDiaryEntries = readLocalDiary();
   registerFormEl.reset();
   renderView();
@@ -658,7 +679,7 @@ async function submitLogin(event) {
   event.preventDefault();
   const email = loginEmailEl.value.trim().toLowerCase();
   const password = loginPasswordEl.value;
-  if (!email || !password) throw new Error("Введите email и пароль.");
+  if (!email || !password) throw new Error("Вкажіть email і пароль.");
 
   try {
     if (firebaseAuth && firebaseAuthApi) {
@@ -672,6 +693,7 @@ async function submitLogin(event) {
   }
 
   landingScreen = "home";
+  forceLandingView = false;
   localDiaryEntries = readLocalDiary();
   loginFormEl.reset();
   renderView();
@@ -684,6 +706,7 @@ function enterGuestMode() {
   sessionMode = "guest";
   currentUser = null;
   landingScreen = "home";
+  forceLandingView = false;
   localDiaryEntries = readLocalDiary();
   renderView();
   loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
@@ -699,6 +722,7 @@ async function logout() {
   currentUser = null;
   sessionMode = "anonymous";
   landingScreen = "home";
+  forceLandingView = false;
   currentDayEntries = [];
   currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
   renderView();
@@ -760,6 +784,7 @@ async function checkAuth() {
   }
 
   landingScreen = "home";
+  forceLandingView = false;
   localDiaryEntries = canUseDashboard() ? readLocalDiary() : [];
   renderView();
   if (canUseDashboard()) {
@@ -770,8 +795,11 @@ async function checkAuth() {
 
 function wireEvents() {
   logoHomeButtonEl.addEventListener("click", showHomeScreen);
+  dashboardLogoHomeButtonEl.addEventListener("click", showHomeScreen);
   navInfoButtonEl.addEventListener("click", showInfoScreen);
   navContactsButtonEl.addEventListener("click", showContactsScreen);
+  dashboardInfoButtonEl.addEventListener("click", showInfoScreen);
+  dashboardContactsButtonEl.addEventListener("click", showContactsScreen);
   navSignInButtonEl.addEventListener("click", showLoginScreen);
   navGetStartedButtonEl.addEventListener("click", showRegisterScreen);
   heroRegisterButtonEl.addEventListener("click", showRegisterScreen);
