@@ -49,6 +49,15 @@ OPENAI_API_KEY = os.getenv(
     os.getenv("OPENAI_KEY", os.getenv("OPENAI_TOKEN", "")),
 ).strip()
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
+HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN", os.getenv("HF_TOKEN", "")).strip()
+HUGGINGFACE_FOOD_MODELS = [
+    model.strip()
+    for model in os.getenv(
+        "HUGGINGFACE_FOOD_MODELS",
+        "nateraw/food,Kaludi/food-category-classification-v2.0",
+    ).split(",")
+    if model.strip()
+]
 CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
 CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
@@ -269,6 +278,59 @@ def response_error_text(response: requests.Response) -> str:
         if payload.get("error") and isinstance(payload.get("error"), str):
             return str(payload.get("error"))
     return str(payload)
+
+
+def estimate_portion_grams(label: str) -> float:
+    text = (label or "").lower()
+    for aliases, grams in [
+        (("salad",), 220.0),
+        (("soup",), 320.0),
+        (("pizza",), 180.0),
+        (("burger", "cheeseburger"), 220.0),
+        (("fries",), 140.0),
+        (("pasta",), 250.0),
+        (("rice",), 200.0),
+        (("chicken",), 170.0),
+        (("steak", "beef"), 190.0),
+        (("fish", "salmon"), 180.0),
+        (("cake",), 130.0),
+        (("apple", "orange", "banana"), 150.0),
+    ]:
+        if any(alias in text for alias in aliases):
+            return grams
+    return 200.0
+
+
+def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Optional[str]]:
+    if not HUGGINGFACE_FOOD_MODELS:
+        return [], None
+    headers = {"Content-Type": "application/octet-stream"}
+    if HUGGINGFACE_API_TOKEN:
+        headers["Authorization"] = f"Bearer {HUGGINGFACE_API_TOKEN}"
+
+    last_error = None
+    for model_name in HUGGINGFACE_FOOD_MODELS:
+        endpoint = f"https://api-inference.huggingface.co/models/{model_name}"
+        try:
+            response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=20)
+            if response.status_code == 503:
+                response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=30)
+            if response.status_code >= 400:
+                last_error = f"HuggingFace HTTP {response.status_code}: {response_error_text(response)}"
+                continue
+            payload = response.json()
+            if isinstance(payload, dict) and payload.get("error"):
+                last_error = f"HuggingFace error: {payload.get('error')}"
+                continue
+            if not isinstance(payload, list):
+                last_error = "HuggingFace returned unexpected payload"
+                continue
+            labels = unique_labels([item.get("label", "") for item in payload if isinstance(item, dict)])
+            if labels:
+                return labels, None
+        except requests.RequestException as exc:
+            last_error = f"HuggingFace failed ({exc.__class__.__name__})"
+    return [], last_error
 
 
 def fetch_openai_food_insights(image_bytes: bytes) -> tuple[list[str], Optional[float], Optional[str]]:
@@ -677,10 +739,16 @@ def create_app() -> Flask:
                     "localPasswordAuth": True,
                 },
                 "recognitionProviders": {
+                    "huggingFaceConfigured": True,
                     "openAIVisionConfigured": bool(OPENAI_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
-                    "priorityOrder": ["OpenAI Vision", "Clarifai food model", "MobileNet fallback"],
+                    "priorityOrder": [
+                        "HuggingFace food model (free)",
+                        "OpenAI Vision",
+                        "Clarifai food model",
+                        "MobileNet fallback",
+                    ],
                 },
                 "nutritionProviders": {
                     "edamamConfigured": bool(EDAMAM_APP_ID and EDAMAM_APP_KEY),
@@ -724,23 +792,32 @@ def create_app() -> Flask:
 
         image_bytes = extract_image_bytes(image_data)
         if image_bytes:
-            openai_configured = bool(OPENAI_API_KEY)
-            labels, estimated_grams, openai_error = fetch_openai_food_insights(image_bytes)
+            labels, hf_error = fetch_huggingface_food_labels(image_bytes)
             if labels:
-                provider = "OpenAI Vision"
+                provider = "HuggingFace food model"
+                estimated_grams = estimate_portion_grams(labels[0])
             else:
-                labels = fetch_clarifai_labels(image_bytes)
+                labels, estimated_grams, openai_error = fetch_openai_food_insights(image_bytes)
                 if labels:
-                    provider = "Clarifai food model"
-                    diagnostics = openai_error if (openai_error and openai_configured) else ""
+                    provider = "OpenAI Vision"
                 else:
-                    diagnostics = openai_error or ""
+                    labels = fetch_clarifai_labels(image_bytes)
+                    if labels:
+                        provider = "Clarifai food model"
+                        estimated_grams = estimate_portion_grams(labels[0])
+                    else:
+                        diagnostics = openai_error or hf_error or ""
 
         if not labels and fallback_label:
             labels = [fallback_label]
+            estimated_grams = estimate_portion_grams(fallback_label)
 
         if not labels:
             labels = ["unknown food"]
+            estimated_grams = estimate_portion_grams("unknown")
+
+        if provider != "MobileNet fallback":
+            diagnostics = ""
 
         return jsonify(
             {
