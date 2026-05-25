@@ -247,7 +247,7 @@ function showContactsScreen() {
 }
 
 function updateAnalyzeButtonState() {
-  const canAnalyze = !!model && !!currentImageData;
+  const canAnalyze = !!currentImageData;
   startProcessButtonEl.disabled = !canAnalyze;
   analyzeButtonEl.disabled = !canAnalyze || !canUseDashboard();
 }
@@ -513,16 +513,21 @@ async function loadHistory(days = 30) {
 }
 
 async function loadModel() {
+  if (typeof mobilenet === "undefined") {
+    model = null;
+    setModelStatus("MobileNet недоступний — використовується серверне AI-розпізнавання.", true);
+    updateAnalyzeButtonState();
+    return;
+  }
   try {
     setModelStatus("Завантаження AI-моделі...");
-    if (typeof mobilenet === "undefined") throw new Error("MobileNet недоступний");
     model = await mobilenet.load({ version: 2, alpha: 1.0 });
     setModelStatus("Модель готова до аналізу", true);
-    updateAnalyzeButtonState();
-  } catch (error) {
-    setModelStatus("Помилка завантаження AI-моделі");
-    setMessage(error.message, true);
+  } catch {
+    model = null;
+    setModelStatus("MobileNet не завантажено — використовується серверне AI-розпізнавання.", true);
   }
+  updateAnalyzeButtonState();
 }
 
 function renderPredictionChips(labels) {
@@ -552,7 +557,7 @@ function localEstimate(query, grams) {
 }
 
 async function analyzeImage() {
-  if (!model || !currentImageData) return;
+  if (!currentImageData) return;
   if (!canUseDashboard()) enterGuestMode();
 
   analyzeButtonEl.disabled = true;
@@ -562,7 +567,10 @@ async function analyzeImage() {
   setMessage("Йде AI-аналіз фото...");
 
   try {
-    const predictions = await model.classify(imagePreviewEl, 3);
+    let predictions = [];
+    if (model) {
+      predictions = await model.classify(imagePreviewEl, 3);
+    }
     const fallbackLabel = predictions[0]?.className || "unknown food";
     let labels = [fallbackLabel];
     let provider = "MobileNet";
