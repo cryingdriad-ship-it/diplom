@@ -50,7 +50,10 @@ OPENAI_API_KEY = os.getenv(
     os.getenv("OPENAI_KEY", os.getenv("OPENAI_TOKEN", "")),
 ).strip()
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
-HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN", os.getenv("HF_TOKEN", "")).strip()
+HUGGINGFACE_API_TOKEN = os.getenv(
+    "HUGGINGFACE_API_TOKEN",
+    os.getenv("HUGGINGFACE_TOKEN", os.getenv("HF_TOKEN", "")),
+).strip()
 HUGGINGFACE_FOOD_MODELS = [
     model.strip()
     for model in os.getenv(
@@ -343,7 +346,7 @@ def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Option
     if not HUGGINGFACE_FOOD_MODELS:
         return [], None
     if not HUGGINGFACE_API_TOKEN:
-        return [], "HUGGINGFACE_API_TOKEN is not configured"
+        return [], "HuggingFace token is not configured (set HUGGINGFACE_API_TOKEN or HUGGINGFACE_TOKEN)"
     headers = {"Content-Type": "application/octet-stream"}
     headers["Authorization"] = f"Bearer {HUGGINGFACE_API_TOKEN}"
 
