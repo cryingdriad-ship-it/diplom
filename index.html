@@ -12,21 +12,21 @@
     <main class="app-shell">
       <section id="landingView" class="landing-shell">
         <header class="top-nav">
-          <div class="brand">
+          <button id="logoHomeButton" class="brand brand-button" type="button" aria-label="На головну сторінку">
             <span class="brand-logo" aria-hidden="true"></span>
             <span>NUTRIWELL</span>
-          </div>
+          </button>
           <nav class="menu">
-            <a href="#how-it-works">Дізнатись більше</a>
-            <a href="#contacts">Контакти</a>
+            <button id="navInfoButton" class="menu-link" type="button">Дізнатись більше</button>
+            <button id="navContactsButton" class="menu-link" type="button">Контакти</button>
           </nav>
           <div class="nav-actions">
-            <button id="navSignInButton" class="btn ghost nav-hidden" type="button">Вхід</button>
-            <button id="navGetStartedButton" class="btn accent" type="button">Зареєструватись</button>
+            <button id="navSignInButton" class="btn ghost motion-cta" type="button">Вхід</button>
+            <button id="navGetStartedButton" class="btn accent motion-cta" type="button">Зареєструватись</button>
           </div>
         </header>
 
-        <div class="landing-split">
+        <div id="landingSplit" class="landing-split">
           <section class="landing-left">
             <section id="landingHomeScreen" class="landing-screen">
               <h1 class="hero-title">
@@ -35,8 +35,9 @@
                 <span class="title-line delay-2">контролем калорій.</span>
               </h1>
               <div class="hero-actions">
-                <button id="heroRegisterButton" class="btn accent" type="button">Зареєструватись</button>
-                <button id="guestModeButton" class="btn outline-accent" type="button">Продовжити як гість</button>
+                <button id="heroRegisterButton" class="btn accent motion-cta" type="button">Зареєструватись</button>
+                <button id="heroLoginButton" class="btn ghost motion-cta" type="button">Вхід</button>
+                <button id="guestModeButton" class="btn outline-accent motion-cta" type="button">Продовжити як гість</button>
               </div>
             </section>
 
@@ -75,8 +76,42 @@
                 <button id="switchToRegisterButton" class="switch-link" type="button">Зареєструватись</button>
               </p>
             </section>
+
+            <section id="landingInfoScreen" class="landing-screen hidden">
+              <article class="info-card">
+                <header class="info-header">
+                  <span class="brand-logo info-logo" aria-hidden="true"></span>
+                  <h2>NUTRIWELL | ПРО НАС</h2>
+                </header>
+                <p>
+                  NUTRIWELL — твій інноваційний щоденник харчування, який працює за допомогою штучного інтелекту.
+                </p>
+                <p>
+                  Більше ніяких складних ручних записів: просто зроби фото своєї їжі, і наша система миттєво
+                  проаналізує її склад та підрахує калорії.
+                </p>
+                <p>
+                  Завдяки NUTRIWELL, ведення щоденника стає інтуїтивно зрозумілим, допомагаючи вам ефективніше
+                  відстежувати прогрес та досягати поставлених цілей у харчуванні.
+                </p>
+              </article>
+            </section>
+
+            <section id="landingContactsScreen" class="landing-screen hidden">
+              <article class="info-card contact-card">
+                <header class="info-header">
+                  <span class="brand-logo info-logo" aria-hidden="true"></span>
+                  <h2>NUTRIWELL | КОНТАКТИ</h2>
+                </header>
+                <p class="contact-line">ВИКОНАЛА</p>
+                <p class="contact-line">СТУДЕНТКА КП-23 БАЛІНА АЛІНА</p>
+                <p class="contact-line contact-gap">ДЛЯ ЗВ’ЯЗКУ ЗІ МНОЮ:</p>
+                <p class="contact-link">📧 ALINABALINA11@GMAIL.COM</p>
+                <p class="contact-link">☎️ +380509286517</p>
+              </article>
+            </section>
           </section>
-          <aside class="landing-right" aria-hidden="true"></aside>
+          <aside id="landingRight" class="landing-right" aria-hidden="true"></aside>
         </div>
 
         <section id="authCard" class="hidden" aria-hidden="true"></section>
@@ -193,6 +228,6 @@
     <script src="./firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=7"></script>
+    <script type="module" src="./app.js?v=8"></script>
   </body>
 </html>

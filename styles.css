@@ -58,6 +58,18 @@ body {
   letter-spacing: 0.04em;
 }
 
+.brand-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.brand-button:hover {
+  transform: translateY(-1px);
+}
+
 .brand-logo {
   width: 34px;
   height: 34px;
@@ -74,14 +86,39 @@ body {
   gap: 2rem;
 }
 
-.menu a {
+.menu-link {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.12rem;
+  font-weight: 600;
   color: #d4d4d8;
   text-decoration: none;
-  font-weight: 500;
+  position: relative;
+  padding: 0.25rem 0;
+  transition: color 0.25s ease, transform 0.25s ease;
 }
 
-.menu a:hover {
+.menu-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #dce600, #00d5ff);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.menu-link:hover {
   color: #fff;
+  transform: translateY(-1px);
+}
+
+.menu-link:hover::after {
+  transform: scaleX(1);
 }
 
 .nav-actions {
@@ -234,6 +271,30 @@ select:focus {
   padding: 0.8rem 1.8rem;
 }
 
+.motion-cta {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
+}
+
+.motion-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%);
+  transform: translateX(-140%);
+  transition: transform 0.5s ease;
+}
+
+.motion-cta:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 20px #00000022;
+}
+
+.motion-cta:hover::before {
+  transform: translateX(140%);
+}
+
 .btn.accent {
   background: var(--lemon);
   color: #111;
@@ -281,6 +342,81 @@ select:focus {
 
 .nav-hidden {
   display: none;
+}
+
+.landing-shell.landing-mode-info .landing-split,
+.landing-shell.landing-mode-contacts .landing-split {
+  grid-template-columns: 1fr;
+  background: linear-gradient(120deg, #96e713 0%, #00c6ff 45%, #9ae500 100%);
+}
+
+.landing-shell.landing-mode-info .landing-left,
+.landing-shell.landing-mode-contacts .landing-left {
+  width: 100%;
+  background: transparent;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: clamp(1rem, 2vw, 1.5rem);
+}
+
+.landing-shell.landing-mode-info .landing-right,
+.landing-shell.landing-mode-contacts .landing-right {
+  display: none;
+}
+
+.info-card {
+  width: min(1200px, 100%);
+  background: #040507;
+  color: #f8fafc;
+  border-radius: 24px;
+  padding: clamp(1.1rem, 2.8vw, 2.2rem);
+  box-shadow: 0 10px 28px #0000004d;
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.info-logo {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+}
+
+.info-header h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  letter-spacing: 0.02em;
+}
+
+.info-card p {
+  margin: 0.8rem 0;
+  font-size: clamp(1rem, 2vw, 1.7rem);
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.contact-card {
+  text-align: center;
+}
+
+.contact-card .info-header {
+  justify-content: center;
+}
+
+.contact-line {
+  margin: 0.65rem 0;
+}
+
+.contact-gap {
+  margin-top: 2rem;
+}
+
+.contact-link {
+  margin: 0.6rem 0;
 }
 
 #dashboardView {

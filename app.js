@@ -23,12 +23,18 @@ const landingViewEl = byId("landingView");
 const landingHomeScreenEl = byId("landingHomeScreen");
 const landingRegisterScreenEl = byId("landingRegisterScreen");
 const landingLoginScreenEl = byId("landingLoginScreen");
+const landingInfoScreenEl = byId("landingInfoScreen");
+const landingContactsScreenEl = byId("landingContactsScreen");
 const dashboardViewEl = byId("dashboardView");
 const appMessageEl = byId("appMessage");
 const modelStatusEl = byId("model-status");
+const logoHomeButtonEl = byId("logoHomeButton");
+const navInfoButtonEl = byId("navInfoButton");
+const navContactsButtonEl = byId("navContactsButton");
 const navSignInButtonEl = byId("navSignInButton");
 const navGetStartedButtonEl = byId("navGetStartedButton");
 const heroRegisterButtonEl = byId("heroRegisterButton");
+const heroLoginButtonEl = byId("heroLoginButton");
 const registerFormEl = byId("registerForm");
 const registerEmailEl = byId("registerEmail");
 const registerPasswordEl = byId("registerPassword");
@@ -83,7 +89,7 @@ let currentDayEntries = [];
 let currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
 let deferredPrompt = null;
 let sessionMode = "anonymous"; // anonymous | guest | user
-let landingScreen = "home"; // home | register | login
+let landingScreen = "home"; // home | register | login | info | contacts
 let localDiaryEntries = [];
 let firebaseAuthApi = null;
 let firebaseAuth = null;
@@ -159,6 +165,9 @@ function writeLocalAuthUsers(users) {
 }
 
 function renderView() {
+  landingViewEl.classList.remove("landing-mode-home", "landing-mode-register", "landing-mode-login", "landing-mode-info", "landing-mode-contacts");
+  landingViewEl.classList.add(`landing-mode-${landingScreen}`);
+
   if (canUseDashboard()) {
     landingViewEl.classList.add("hidden");
     dashboardViewEl.classList.remove("hidden");
@@ -168,6 +177,8 @@ function renderView() {
     landingHomeScreenEl.classList.toggle("hidden", landingScreen !== "home");
     landingRegisterScreenEl.classList.toggle("hidden", landingScreen !== "register");
     landingLoginScreenEl.classList.toggle("hidden", landingScreen !== "login");
+    landingInfoScreenEl.classList.toggle("hidden", landingScreen !== "info");
+    landingContactsScreenEl.classList.toggle("hidden", landingScreen !== "contacts");
   }
 
   switchToAccountButtonEl.classList.toggle("hidden", !isGuestMode());
@@ -200,6 +211,18 @@ function showRegisterScreen() {
 
 function showLoginScreen() {
   showLandingScreen("login");
+}
+
+function showHomeScreen() {
+  showLandingScreen("home");
+}
+
+function showInfoScreen() {
+  showLandingScreen("info");
+}
+
+function showContactsScreen() {
+  showLandingScreen("contacts");
 }
 
 function updateAnalyzeButtonState() {
@@ -285,21 +308,47 @@ async function localAuth(email, password, registerMode) {
   const users = readLocalAuthUsers();
   const existing = users.find((u) => u.email === email);
   if (registerMode) {
-    if (existing) throw new Error("Пользователь уже существует (local mode).");
+    if (existing) throw new Error("Акаунт з таким email вже існує.");
     users.push({ email, password });
     writeLocalAuthUsers(users);
     currentUser = { id: `local-${email}`, email };
     sessionMode = "user";
-    setMessage("Бекенд недоступен: зарегистрировано в локальном режиме браузера.");
+    setMessage("Бекенд недоступний: зареєстровано в локальному режимі браузера.");
     return;
   }
 
-  if (!existing || existing.password !== password) {
-    throw new Error("Неверный email или пароль (local mode).");
+  if (!existing) {
+    throw new Error("Акаунт з таким email не знайдено. Спочатку зареєструйтесь.");
+  }
+  if (existing.password !== password) {
+    throw new Error("Невірний пароль для цього акаунта.");
   }
   currentUser = { id: `local-${email}`, email };
   sessionMode = "user";
-  setMessage("Бекенд недоступен: вход выполнен в локальном режиме браузера.");
+  setMessage("Бекенд недоступний: вхід виконано в локальному режимі браузера.");
+}
+
+function humanizeAuthError(error, registerMode) {
+  const code = String(error?.code || "");
+  if (registerMode) {
+    if (code.includes("email-already-in-use")) return "Акаунт з таким email вже існує.";
+    if (code.includes("weak-password")) return "Пароль занадто слабкий. Використайте щонайменше 6 символів.";
+  } else {
+    if (code.includes("user-not-found")) return "Акаунт з таким email не знайдено. Спочатку зареєструйтесь.";
+    if (code.includes("wrong-password")) return "Невірний пароль для цього акаунта.";
+    if (code.includes("invalid-login-credentials")) return "Акаунт не знайдено або пароль невірний.";
+  }
+  if (code.includes("invalid-email")) return "Некоректний формат email.";
+
+  const message = String(error?.message || "");
+  const lower = message.toLowerCase();
+  if (registerMode && (lower.includes("вже існує") || lower.includes("already exists"))) {
+    return "Акаунт з таким email вже існує.";
+  }
+  if (!registerMode && (lower.includes("невірний") || lower.includes("неверный") || lower.includes("invalid"))) {
+    return "Акаунт не знайдено або пароль невірний.";
+  }
+  return message || "Сталася помилка авторизації.";
 }
 
 function setNutritionResult(result = null) {
@@ -585,11 +634,15 @@ async function submitRegister(event) {
   const password = registerPasswordEl.value;
   if (!email || password.length < 6) throw new Error("Введите корректный email и пароль (мин. 6 символов).");
 
-  if (firebaseAuth && firebaseAuthApi) {
-    const credential = await firebaseAuthApi.createUserWithEmailAndPassword(firebaseAuth, email, password);
-    await syncFirebaseSession(credential.user);
-  } else {
-    await localAuth(email, password, true);
+  try {
+    if (firebaseAuth && firebaseAuthApi) {
+      const credential = await firebaseAuthApi.createUserWithEmailAndPassword(firebaseAuth, email, password);
+      await syncFirebaseSession(credential.user);
+    } else {
+      await localAuth(email, password, true);
+    }
+  } catch (error) {
+    throw new Error(humanizeAuthError(error, true));
   }
 
   landingScreen = "home";
@@ -607,11 +660,15 @@ async function submitLogin(event) {
   const password = loginPasswordEl.value;
   if (!email || !password) throw new Error("Введите email и пароль.");
 
-  if (firebaseAuth && firebaseAuthApi) {
-    const credential = await firebaseAuthApi.signInWithEmailAndPassword(firebaseAuth, email, password);
-    await syncFirebaseSession(credential.user);
-  } else {
-    await localAuth(email, password, false);
+  try {
+    if (firebaseAuth && firebaseAuthApi) {
+      const credential = await firebaseAuthApi.signInWithEmailAndPassword(firebaseAuth, email, password);
+      await syncFirebaseSession(credential.user);
+    } else {
+      await localAuth(email, password, false);
+    }
+  } catch (error) {
+    throw new Error(humanizeAuthError(error, false));
   }
 
   landingScreen = "home";
@@ -712,9 +769,13 @@ async function checkAuth() {
 }
 
 function wireEvents() {
+  logoHomeButtonEl.addEventListener("click", showHomeScreen);
+  navInfoButtonEl.addEventListener("click", showInfoScreen);
+  navContactsButtonEl.addEventListener("click", showContactsScreen);
   navSignInButtonEl.addEventListener("click", showLoginScreen);
   navGetStartedButtonEl.addEventListener("click", showRegisterScreen);
   heroRegisterButtonEl.addEventListener("click", showRegisterScreen);
+  heroLoginButtonEl.addEventListener("click", showLoginScreen);
   switchToLoginButtonEl.addEventListener("click", showLoginScreen);
   switchToRegisterButtonEl.addEventListener("click", showRegisterScreen);
 
