@@ -32,6 +32,9 @@ const calorieGaugeEl = byId("calorieGauge");
 const gaugeCaloriesEl = byId("gauge-calories");
 const statProteinEl = byId("stat-protein");
 const statToTargetEl = byId("stat-to-target");
+const vizProteinBarEl = byId("viz-protein-bar");
+const vizFatBarEl = byId("viz-fat-bar");
+const vizCarbBarEl = byId("viz-carb-bar");
 const dashboardViewEl = byId("dashboardView");
 const appMessageEl = byId("appMessage");
 const modelStatusEl = byId("model-status");
@@ -108,6 +111,10 @@ function round(value) {
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function activeDateKey() {
+  return entryDateEl.value || todayKey();
 }
 
 function setMessage(text, isError = false) {
@@ -374,6 +381,13 @@ function setNutritionResult(result = null) {
   fatsEl.textContent = result ? `${round(result.fat)}` : "—";
   carbsEl.textContent = result ? `${round(result.carbs)}` : "—";
   confidenceEl.textContent = result ? `${round(result.confidence * 100)}%` : "—";
+  const protein = Math.max(0, Number(result?.protein || 0));
+  const fat = Math.max(0, Number(result?.fat || 0));
+  const carbs = Math.max(0, Number(result?.carbs || 0));
+  const total = Math.max(1, protein + fat + carbs);
+  vizProteinBarEl.style.width = `${Math.round((protein / total) * 100)}%`;
+  vizFatBarEl.style.width = `${Math.round((fat / total) * 100)}%`;
+  vizCarbBarEl.style.width = `${Math.round((carbs / total) * 100)}%`;
 }
 
 function clearCurrentAnalysis() {
@@ -553,6 +567,7 @@ async function analyzeImage() {
     let labels = [fallbackLabel];
     let provider = "MobileNet";
     let providerDiagnostics = "";
+    let recognizedGrams = null;
 
     try {
       const recognition = await api("/api/food/recognize", {
@@ -562,10 +577,14 @@ async function analyzeImage() {
       labels = recognition.labels?.length ? recognition.labels : [fallbackLabel];
       provider = recognition.provider || provider;
       providerDiagnostics = recognition.providerDiagnostics || "";
+      recognizedGrams = Number(recognition.estimatedGrams || 0) > 0 ? Number(recognition.estimatedGrams) : null;
     } catch {}
 
     renderPredictionChips(labels);
-    const grams = Math.max(1, Number(gramsInputEl.value || 250));
+    const grams = Math.max(1, Number(recognizedGrams || gramsInputEl.value || 250));
+    if (recognizedGrams) {
+      gramsInputEl.value = String(Math.round(grams));
+    }
     let estimate = null;
     try {
       estimate = await api("/api/food/estimate", {
@@ -603,7 +622,7 @@ async function analyzeImage() {
 
 async function saveEntry() {
   if (!currentAnalysis || !canUseDashboard()) return;
-  const dateKey = entryDateEl.value || todayKey();
+  const dateKey = activeDateKey();
   if (isServerUser()) {
     await api("/api/diary/entries", {
       method: "POST",
@@ -619,7 +638,7 @@ async function saveEntry() {
     writeLocalDiary();
   }
   saveEntryButtonEl.disabled = true;
-  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadDayDiary(activeDateKey());
   await loadHistory(30);
 }
 
@@ -630,12 +649,12 @@ async function deleteEntry(entryId) {
     localDiaryEntries = localDiaryEntries.filter((entry) => String(entry.id) !== String(entryId));
     writeLocalDiary();
   }
-  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadDayDiary(activeDateKey());
   await loadHistory(30);
 }
 
 async function clearCurrentDay() {
-  const selectedDate = viewDateEl.value || todayKey();
+  const selectedDate = activeDateKey();
   if (isServerUser()) {
     for (const entry of currentDayEntries) {
       await api(`/api/diary/entries/${entry.id}`, { method: "DELETE" });
@@ -670,7 +689,7 @@ async function submitRegister(event) {
   localDiaryEntries = readLocalDiary();
   registerFormEl.reset();
   renderView();
-  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadDayDiary(activeDateKey());
   await loadHistory(30);
   setMessage(firebaseAuth ? "Регистрация через Firebase успешна." : "Регистрация успешна.");
 }
@@ -697,7 +716,7 @@ async function submitLogin(event) {
   localDiaryEntries = readLocalDiary();
   loginFormEl.reset();
   renderView();
-  await loadDayDiary(viewDateEl.value || todayKey());
+  await loadDayDiary(activeDateKey());
   await loadHistory(30);
   setMessage(firebaseAuth ? "Вход через Firebase выполнен." : "Вход выполнен.");
 }
@@ -709,7 +728,7 @@ function enterGuestMode() {
   forceLandingView = false;
   localDiaryEntries = readLocalDiary();
   renderView();
-  loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
+  loadDayDiary(activeDateKey()).catch((error) => setMessage(error.message, true));
   loadHistory(30).catch((error) => setMessage(error.message, true));
   setMessage("Гостевой режим включён.");
 }
@@ -788,7 +807,7 @@ async function checkAuth() {
   localDiaryEntries = canUseDashboard() ? readLocalDiary() : [];
   renderView();
   if (canUseDashboard()) {
-    await loadDayDiary(viewDateEl.value || todayKey());
+    await loadDayDiary(activeDateKey());
     await loadHistory(30);
   }
 }
@@ -844,10 +863,11 @@ function wireEvents() {
     clearCurrentDay().catch((error) => setMessage(error.message, true));
   });
   refreshDayEl.addEventListener("click", () => {
-    loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
+    loadDayDiary(activeDateKey()).catch((error) => setMessage(error.message, true));
   });
-  viewDateEl.addEventListener("change", () => {
-    loadDayDiary(viewDateEl.value || todayKey()).catch((error) => setMessage(error.message, true));
+  entryDateEl.addEventListener("change", () => {
+    viewDateEl.value = activeDateKey();
+    loadDayDiary(activeDateKey()).catch((error) => setMessage(error.message, true));
   });
   goalSelectEl.addEventListener("change", renderTotals);
 

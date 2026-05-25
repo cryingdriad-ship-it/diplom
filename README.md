@@ -26,9 +26,11 @@ export MYFITNESSPAL_DB_PATH="/workspace/myfitnesspal.db"
 ### Реальні джерела AI/food-даних
 
 - **Розпізнавання їжі (AI):**
+  - OpenAI Vision (якщо задано `OPENAI_API_KEY`)
   - Clarifai Food Model (якщо задано `CLARIFAI_PAT`)
   - fallback: MobileNet
 - **Харчова база/нутрієнти:**
+  - Edamam Food Database (`EDAMAM_APP_ID`, `EDAMAM_APP_KEY`) — пріоритетний пошук з урахуванням грамажу порції
   - USDA FoodData Central (`USDA_API_KEY`)
   - FatSecret (`FATSECRET_CLIENT_ID`, `FATSECRET_CLIENT_SECRET`)
   - OpenFoodFacts (безкоштовний fallback)
@@ -62,6 +64,15 @@ export FIREBASE_PROJECT_ID="YOUR_PROJECT_ID"
 Якщо Firebase config не заданий, клієнт автоматично використовує локальну авторизацію бекенду (`/api/auth/register`, `/api/auth/login`) як fallback.
 
 Після завантаження фото є окрема кнопка **«Запустити процес»**, яка стартує AI-аналіз.
+
+### Додаткові ключі для точнішого розпізнавання та порцій
+
+```bash
+export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+export OPENAI_VISION_MODEL="gpt-4o-mini"
+export EDAMAM_APP_ID="YOUR_EDAMAM_APP_ID"
+export EDAMAM_APP_KEY="YOUR_EDAMAM_APP_KEY"
+```
 
 > **Строго конфіденційно**
 

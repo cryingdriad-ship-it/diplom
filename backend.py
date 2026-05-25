@@ -1,6 +1,7 @@
 import base64
 import datetime as dt
 import hashlib
+import json
 import os
 import re
 import secrets
@@ -20,6 +21,10 @@ DB_PATH = os.getenv("MYFITNESSPAL_DB_PATH", os.path.join(BASE_DIR, "myfitnesspal
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
 FATSECRET_CLIENT_ID = os.getenv("FATSECRET_CLIENT_ID", "").strip()
 FATSECRET_CLIENT_SECRET = os.getenv("FATSECRET_CLIENT_SECRET", "").strip()
+EDAMAM_APP_ID = os.getenv("EDAMAM_APP_ID", "").strip()
+EDAMAM_APP_KEY = os.getenv("EDAMAM_APP_KEY", "").strip()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
 CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
 CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
@@ -202,6 +207,97 @@ def normalize_label(label: str) -> str:
     return re.sub(r"\s+", " ", (label or "").replace("_", " ").strip())
 
 
+def unique_labels(candidates: list[str], limit: int = 5) -> list[str]:
+    labels = []
+    seen = set()
+    for raw in candidates:
+        label = normalize_label(raw)
+        key = label.casefold()
+        if not label or key in seen:
+            continue
+        seen.add(key)
+        labels.append(label)
+        if len(labels) >= limit:
+            break
+    return labels
+
+
+def safe_number(value) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def response_error_text(response: requests.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return (response.text or response.reason or "Unknown error").strip()
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict):
+            message = error.get("message")
+            if message:
+                return str(message)
+        if payload.get("message"):
+            return str(payload.get("message"))
+        if payload.get("error") and isinstance(payload.get("error"), str):
+            return str(payload.get("error"))
+    return str(payload)
+
+
+def fetch_openai_food_insights(image_bytes: bytes) -> tuple[list[str], Optional[float], Optional[str]]:
+    if not OPENAI_API_KEY:
+        return [], None, "OPENAI_API_KEY is not configured"
+    try:
+        image_data_url = f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "model": OPENAI_VISION_MODEL,
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You identify food from photos. Return only JSON with keys: "
+                            "foodName (string), alternatives (array of strings), estimatedGrams (number)."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Analyze the meal photo and estimate portion grams."},
+                            {"type": "image_url", "image_url": {"url": image_data_url, "detail": "low"}},
+                        ],
+                    },
+                ],
+            },
+            timeout=20,
+        )
+        if response.status_code >= 400:
+            return [], None, f"OpenAI Vision HTTP {response.status_code}: {response_error_text(response)}"
+        payload = response.json()
+        content = payload.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+        if not isinstance(content, str):
+            return [], None, "OpenAI Vision returned invalid response content"
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            return [], None, "OpenAI Vision returned non-object JSON"
+        food_name = normalize_label(parsed.get("foodName", ""))
+        alternatives = parsed.get("alternatives", [])
+        if not isinstance(alternatives, list):
+            alternatives = []
+        labels = unique_labels([food_name, *[str(item) for item in alternatives]])
+        grams = safe_number(parsed.get("estimatedGrams"))
+        return labels, (grams if grams > 0 else None), None
+    except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+        return [], None, f"OpenAI Vision failed ({exc.__class__.__name__})"
+
+
 def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
     if not CLARIFAI_PAT:
         return []
@@ -224,12 +320,7 @@ def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
         if not outputs:
             return []
         concepts = outputs[0].get("data", {}).get("concepts", [])
-        labels = []
-        for concept in concepts[:5]:
-            name = normalize_label(concept.get("name", ""))
-            if name:
-                labels.append(name)
-        return labels
+        return unique_labels([concept.get("name", "") for concept in concepts[:5]])
     except requests.RequestException:
         return []
 
@@ -311,6 +402,40 @@ def fetch_usda_food(query: str) -> Optional[FoodResult]:
         if not foods:
             return None
         return extract_usda_nutrients(foods[0])
+    except requests.RequestException:
+        return None
+
+
+def fetch_edamam_food(query: str, grams: float) -> Optional[FoodResult]:
+    if not EDAMAM_APP_ID or not EDAMAM_APP_KEY:
+        return None
+    portion_grams = max(1.0, float(grams or 100))
+    try:
+        response = requests.post(
+            "https://api.edamam.com/api/food-database/v2/nutrients",
+            params={"app_id": EDAMAM_APP_ID, "app_key": EDAMAM_APP_KEY},
+            json={"ingredients": [f"{round(portion_grams, 1)} g {query}"]},
+            timeout=10,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        calories = safe_number(payload.get("calories"))
+        if calories <= 0:
+            return None
+        nutrients = payload.get("totalNutrients", {})
+        protein = safe_number((nutrients.get("PROCNT") or {}).get("quantity"))
+        fat = safe_number((nutrients.get("FAT") or {}).get("quantity"))
+        carbs = safe_number((nutrients.get("CHOCDF") or {}).get("quantity"))
+        actual_grams = safe_number(payload.get("totalWeight")) or portion_grams
+        return FoodResult(
+            name=query,
+            grams=max(actual_grams, 1.0),
+            calories=calories,
+            protein=protein,
+            fat=fat,
+            carbs=carbs,
+            source="Edamam",
+        )
     except requests.RequestException:
         return None
 
@@ -413,7 +538,11 @@ def fallback_food(query: str) -> FoodResult:
     return FoodResult(name=query or "Unknown food", grams=100.0, calories=220, protein=10, fat=8, carbs=25, source="Fallback")
 
 
-def lookup_food(query: str) -> FoodResult:
+def lookup_food(query: str, grams_hint: float = 100.0) -> FoodResult:
+    edamam = fetch_edamam_food(query, grams_hint)
+    if edamam:
+        return edamam
+
     usda = fetch_usda_food(query)
     if usda:
         return usda
@@ -524,10 +653,13 @@ def create_app() -> Flask:
                     "localPasswordAuth": True,
                 },
                 "recognitionProviders": {
+                    "openAIVisionConfigured": bool(OPENAI_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
+                    "priorityOrder": ["OpenAI Vision", "Clarifai food model", "MobileNet fallback"],
                 },
                 "nutritionProviders": {
+                    "edamamConfigured": bool(EDAMAM_APP_ID and EDAMAM_APP_KEY),
                     "usdaConfigured": bool(USDA_API_KEY),
                     "fatSecretConfigured": bool(FATSECRET_CLIENT_ID and FATSECRET_CLIENT_SECRET),
                     "openFoodFactsConfigured": True,
@@ -563,12 +695,21 @@ def create_app() -> Flask:
         image_data = payload.get("imageData", "")
         labels = []
         provider = "MobileNet fallback"
+        diagnostics = ""
+        estimated_grams = None
 
         image_bytes = extract_image_bytes(image_data)
         if image_bytes:
-            labels = fetch_clarifai_labels(image_bytes)
+            labels, estimated_grams, openai_error = fetch_openai_food_insights(image_bytes)
             if labels:
-                provider = "Clarifai food model"
+                provider = "OpenAI Vision"
+            else:
+                labels = fetch_clarifai_labels(image_bytes)
+                if labels:
+                    provider = "Clarifai food model"
+                    diagnostics = openai_error or ""
+                else:
+                    diagnostics = openai_error or "No vision labels returned"
 
         if not labels and fallback_label:
             labels = [fallback_label]
@@ -576,7 +717,17 @@ def create_app() -> Flask:
         if not labels:
             labels = ["unknown food"]
 
-        return jsonify({"labels": labels, "provider": provider})
+        provider_text = provider
+        if provider != "OpenAI Vision" and diagnostics:
+            provider_text = f"{provider} ({diagnostics})"
+        return jsonify(
+            {
+                "labels": labels,
+                "provider": provider_text,
+                "providerDiagnostics": diagnostics,
+                "estimatedGrams": round(estimated_grams, 1) if estimated_grams else None,
+            }
+        )
 
     @app.post("/api/food/estimate")
     def estimate_food():
@@ -587,7 +738,7 @@ def create_app() -> Flask:
         if not query:
             return jsonify({"error": "Не вказано назву/опис страви"}), 400
 
-        food = lookup_food(query)
+        food = lookup_food(query, grams)
         estimate = apply_gram_multiplier(food, grams)
         return jsonify(
             {

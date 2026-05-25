@@ -180,6 +180,20 @@
               <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
               <div class="metric"><span>AI-впевненість</span><strong id="confidence">—</strong></div>
             </div>
+            <div class="mini-visual">
+              <div class="mini-visual-row">
+                <span>Білки</span>
+                <div class="mini-visual-track"><i id="viz-protein-bar"></i></div>
+              </div>
+              <div class="mini-visual-row">
+                <span>Жири</span>
+                <div class="mini-visual-track"><i id="viz-fat-bar"></i></div>
+              </div>
+              <div class="mini-visual-row">
+                <span>Вуглеводи</span>
+                <div class="mini-visual-track"><i id="viz-carb-bar"></i></div>
+              </div>
+            </div>
           </article>
 
           <article class="panel glass-card">
@@ -216,10 +230,7 @@
                 Дата запису:
                 <input id="entry-date" type="date" />
               </label>
-              <label>
-                Перегляд дати:
-                <input id="view-date" type="date" />
-              </label>
+              <input id="view-date" type="hidden" />
             </div>
             <div class="controls">
               <button id="save-entry" class="btn accent motion-cta" disabled type="button">Додати у щоденник</button>
