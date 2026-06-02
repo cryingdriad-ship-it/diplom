@@ -483,64 +483,46 @@ select:focus {
 
 .stats-hero {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  grid-template-columns: 1.25fr 0.75fr;
   gap: 0.6rem;
   padding: 0.65rem;
-  min-height: 188px;
+  min-height: 176px;
   background: linear-gradient(140deg, rgba(147, 231, 92, 0.7), rgba(110, 224, 195, 0.62));
 }
 
-.gauge-block {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.calorie-overview {
+  display: grid;
+  gap: 0.5rem;
 }
 
-.calorie-gauge {
+.calorie-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.calorie-progress-track {
   --gauge: 0;
-  width: min(100%, 390px);
-  aspect-ratio: 1.72 / 1;
-  border-radius: 20px;
+  height: 12px;
+  border-radius: 999px;
   position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 82%, #84dd70 0 36%, transparent 36.8%),
-    conic-gradient(from 180deg at 50% 82%, #ffffff 0 calc(var(--gauge) * 1.8deg), rgba(255, 255, 255, 0.2) calc(var(--gauge) * 1.8deg) 180deg),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.26), rgba(120, 201, 102, 0.4));
+  overflow: clip;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
 
-.calorie-gauge::before {
+.calorie-progress-track i {
   content: "";
   position: absolute;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  top: 11%;
-  left: calc(50% + (var(--gauge) - 50) * 0.85%);
-  transform: translateX(-50%);
-  background: #1f2d35;
-  border: 5px solid #84dd70;
-  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.28);
-}
-
-.calorie-gauge-center {
-  position: absolute;
-  left: 50%;
-  bottom: 17%;
-  transform: translateX(-50%);
-  text-align: center;
-  color: #fff;
+  inset: 0;
+  width: calc(var(--gauge) * 1%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, #79d96b, #40caa8);
+  transition: width 0.35s ease;
 }
 
 #gauge-calories {
-  display: block;
-  font-size: clamp(1.6rem, 3vw, 2.7rem);
-  line-height: 1;
-}
-
-.calorie-gauge-center span {
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: clamp(1rem, 1.5vw, 1.3rem);
 }
 
 .quick-stats {
@@ -578,6 +560,18 @@ select:focus {
 
 .mini-card.sand {
   background: linear-gradient(145deg, #ffe6ae, #ffd493);
+}
+
+.mini-card.mint {
+  background: linear-gradient(145deg, #cef5df, #b8f0cb);
+}
+
+.mini-card.sky {
+  background: linear-gradient(145deg, #d3ebff, #bde1ff);
+}
+
+.mini-card.lemon {
+  background: linear-gradient(145deg, #fff2b8, #ffe98b);
 }
 
 .dashboard-grid {

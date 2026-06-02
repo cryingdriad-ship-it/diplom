@@ -40,6 +40,24 @@ def load_local_env_file(path: str) -> None:
         return
 
 
+def read_local_env_value(path: str, key: str) -> str:
+    if not os.path.exists(path):
+        return ""
+    try:
+        with open(path, "r", encoding="utf-8") as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                current_key, value = line.split("=", 1)
+                if current_key.strip() != key:
+                    continue
+                return value.strip().strip("\"'")
+    except OSError:
+        return ""
+    return ""
+
+
 load_local_env_file(os.path.join(BASE_DIR, ".env"))
 DB_PATH = os.getenv("MYFITNESSPAL_DB_PATH", os.path.join(BASE_DIR, "myfitnesspal.db"))
 
@@ -54,6 +72,7 @@ OPENAI_API_KEY = os.getenv(
 ).strip()
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
 def get_huggingface_token() -> str:
+    env_path = os.path.join(BASE_DIR, ".env")
     for key in (
         "HUGGINGFACE_API_TOKEN",
         "HUGGINGFACE_TOKEN",
@@ -62,6 +81,9 @@ def get_huggingface_token() -> str:
         "HF_API_TOKEN",
         "HUGGINGFACE_ACCESS_TOKEN",
     ):
+        local_file_value = read_local_env_value(env_path, key).strip()
+        if local_file_value:
+            return local_file_value
         value = os.getenv(key, "").strip()
         if value:
             return value

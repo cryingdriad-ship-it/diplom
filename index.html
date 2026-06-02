@@ -135,13 +135,22 @@
         </header>
 
         <section class="panel glass-card stats-hero">
-          <div class="gauge-block">
-            <div id="calorieGauge" class="calorie-gauge">
-              <div class="calorie-gauge-center">
-                <strong id="gauge-calories">0</strong>
-                <span>Kcal</span>
-              </div>
+          <div class="calorie-overview">
+            <div class="calorie-cards">
+              <article class="mini-card mint">
+                <p>Спожито</p>
+                <strong id="gauge-calories">0 ккал</strong>
+              </article>
+              <article class="mini-card sky">
+                <p>Залишилось</p>
+                <strong id="gauge-remaining">0 ккал</strong>
+              </article>
+              <article class="mini-card lemon">
+                <p>Ціль</p>
+                <strong id="gauge-target">0 ккал</strong>
+              </article>
             </div>
+            <div id="calorieGauge" class="calorie-progress-track"><i></i></div>
           </div>
           <div class="quick-stats">
             <article class="mini-card lilac">
@@ -149,7 +158,7 @@
               <strong id="stat-protein">0 грам</strong>
             </article>
             <article class="mini-card sand">
-              <p>До цілі</p>
+              <p>Баланс</p>
               <strong id="stat-to-target">0 kcal</strong>
             </article>
           </div>
@@ -218,7 +227,7 @@
               <p class="status">Можна змінити назву/грамовку, прибрати зайві або додати нову позицію.</p>
               <div id="detected-items-list" class="detected-items-list"></div>
               <div class="controls">
-                <div class="manual-food-search-wrap">
+                <div id="manual-food-search-wrap" class="manual-food-search-wrap">
                   <input
                     id="manual-food-query"
                     type="text"
@@ -318,6 +327,6 @@
     <script src="./firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=15"></script>
+    <script type="module" src="./app.js?v=16"></script>
   </body>
 </html>

@@ -58,6 +58,8 @@ const dashboardInfoButtonEl = byId("dashboardInfoButton");
 const dashboardContactsButtonEl = byId("dashboardContactsButton");
 const calorieGaugeEl = byId("calorieGauge");
 const gaugeCaloriesEl = byId("gauge-calories");
+const gaugeRemainingEl = byId("gauge-remaining");
+const gaugeTargetEl = byId("gauge-target");
 const statProteinEl = byId("stat-protein");
 const statToTargetEl = byId("stat-to-target");
 const vizProteinBarEl = byId("viz-protein-bar");
@@ -104,6 +106,7 @@ const profileAgeEl = byId("profile-age");
 const detectedItemsListEl = byId("detected-items-list");
 const addItemButtonEl = byId("add-item-button");
 const recalculateItemsButtonEl = byId("recalculate-items-button");
+const manualFoodSearchWrapEl = byId("manual-food-search-wrap");
 const manualFoodQueryEl = byId("manual-food-query");
 const manualFoodSuggestBoxEl = byId("manual-food-suggest-box");
 const manualSearchButtonEl = byId("manual-search-button");
@@ -150,7 +153,7 @@ let currentConfidence = 0;
 let settingsPanelCollapsed = false;
 let manualSuggestTimer = null;
 let manualSuggestionItems = [];
-let manualSuggestHideTimer = null;
+let manualSuggestRequestId = 0;
 let profileSettings = {
   sex: "female",
   heightCm: 165,
@@ -612,16 +615,18 @@ function renderTotals() {
   const calories = round(currentDayTotals.calories);
   const percent = target ? Math.min(200, round((calories / target) * 100)) : 0;
   const gaugePercent = Math.min(100, Math.max(0, percent));
-  const delta = round(target - calories);
+  const remaining = round(target - calories);
   totalCaloriesEl.textContent = `${calories} ккал`;
   targetCaloriesEl.textContent = `${target} ккал`;
   targetPercentEl.textContent = `${percent}%`;
   targetProgressEl.value = Math.min(percent, 100);
   macroRatioEl.textContent = `${round(currentDayTotals.protein)} / ${round(currentDayTotals.fat)} / ${round(currentDayTotals.carbs)} г`;
-  gaugeCaloriesEl.textContent = `${Math.round(calories)}`;
+  gaugeCaloriesEl.textContent = `${Math.round(calories)} ккал`;
+  gaugeRemainingEl.textContent = remaining >= 0 ? `${Math.round(remaining)} ккал` : `+${Math.round(Math.abs(remaining))} ккал`;
+  gaugeTargetEl.textContent = `${Math.round(target)} ккал`;
   calorieGaugeEl.style.setProperty("--gauge", String(gaugePercent));
   statProteinEl.textContent = `${round(currentDayTotals.protein)} грам`;
-  statToTargetEl.textContent = delta >= 0 ? `${delta} kcal` : `+${Math.abs(delta)} kcal`;
+  statToTargetEl.textContent = remaining >= 0 ? `- ${remaining} ккал` : `+ ${Math.abs(remaining)} ккал`;
 }
 
 function renderDiary(entries) {
@@ -899,15 +904,17 @@ function applyManualSuggestion(name) {
 
 async function fetchManualFoodSuggestions(query) {
   const q = String(query || "").trim();
+  const requestId = ++manualSuggestRequestId;
   if (q.length < 2) {
-    renderManualFoodSuggestions([]);
+    if (requestId === manualSuggestRequestId) renderManualFoodSuggestions([]);
     return;
   }
   try {
     const data = await api(`/api/food/search?q=${encodeURIComponent(q)}&limit=8`);
+    if (requestId !== manualSuggestRequestId) return;
     renderManualFoodSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
   } catch {
-    renderManualFoodSuggestions([]);
+    if (requestId === manualSuggestRequestId) renderManualFoodSuggestions([]);
   }
 }
 
@@ -1325,18 +1332,9 @@ function wireEvents() {
     }, 220);
   });
   manualFoodQueryEl.addEventListener("focus", () => {
-    if (manualSuggestHideTimer) {
-      clearTimeout(manualSuggestHideTimer);
-      manualSuggestHideTimer = null;
-    }
     if (manualFoodQueryEl.value.trim().length >= 2) {
       fetchManualFoodSuggestions(manualFoodQueryEl.value).catch(() => {});
     }
-  });
-  manualFoodQueryEl.addEventListener("blur", () => {
-    manualSuggestHideTimer = setTimeout(() => {
-      hideManualFoodSuggestions();
-    }, 140);
   });
   manualFoodSuggestBoxEl.addEventListener("mousedown", (event) => {
     event.preventDefault();
@@ -1358,6 +1356,12 @@ function wireEvents() {
     if (event.key !== "Enter") return;
     event.preventDefault();
     addManualItemFromSearch().catch((error) => setMessage(error.message, true));
+  });
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (manualFoodSearchWrapEl.contains(target)) return;
+    hideManualFoodSuggestions();
   });
   recalculateItemsButtonEl.addEventListener("click", () => {
     recalculateDetectedItems()
