@@ -103,15 +103,12 @@ const clearButtonEl = byId("clear-button");
 const gramsInputEl = byId("grams-input");
 const entryDateEl = byId("entry-date");
 const viewDateEl = byId("view-date");
-const refreshDayEl = byId("refresh-day");
 const goalSelectEl = byId("goal-select");
 const profileSexEl = byId("profile-sex");
 const profileWeightEl = byId("profile-weight");
 const profileHeightEl = byId("profile-height");
 const profileAgeEl = byId("profile-age");
 const detectedItemsListEl = byId("detected-items-list");
-const addItemButtonEl = byId("add-item-button");
-const recalculateItemsButtonEl = byId("recalculate-items-button");
 const manualFoodSearchWrapEl = byId("manual-food-search-wrap");
 const manualFoodQueryEl = byId("manual-food-query");
 const manualFoodSuggestBoxEl = byId("manual-food-suggest-box");
@@ -1101,14 +1098,6 @@ async function saveEntry() {
   setMessage(`Додано записів: ${entriesToSave.length}.`);
 }
 
-async function refreshCurrentDayData(showMessage = false) {
-  await loadDayDiary(activeDateKey());
-  await loadHistory(30);
-  if (showMessage) {
-    setMessage("Дані за обрану дату оновлено.");
-  }
-}
-
 async function deleteEntry(entryId) {
   if (isServerUser()) {
     await api(`/api/diary/entries/${entryId}`, { method: "DELETE" });
@@ -1337,9 +1326,6 @@ function wireEvents() {
   clearDayButtonEl.addEventListener("click", () => {
     clearCurrentDay().catch((error) => setMessage(error.message, true));
   });
-  refreshDayEl.addEventListener("click", () => {
-    refreshCurrentDayData(true).catch((error) => setMessage(error.message, true));
-  });
   entryDateEl.addEventListener("change", () => {
     viewDateEl.value = activeDateKey();
     loadDayDiary(activeDateKey()).catch((error) => setMessage(error.message, true));
@@ -1363,11 +1349,6 @@ function wireEvents() {
   toggleEditButtonEl.addEventListener("click", toggleEditPanel);
   toggleGoalButtonEl.addEventListener("click", toggleGoalPanel);
 
-  addItemButtonEl.addEventListener("click", () => {
-    currentDetectedItems.push(makeDetectedItem("manual food", Number(gramsInputEl.value || 150)));
-    renderDetectedItemsEditor();
-    syncCurrentAnalysisFromItems("Manual edit");
-  });
   manualSearchButtonEl.addEventListener("click", () => {
     addManualItemFromSearch().catch((error) => setMessage(error.message, true));
   });
@@ -1408,14 +1389,6 @@ function wireEvents() {
     if (!(target instanceof Node)) return;
     if (manualFoodSearchWrapEl.contains(target)) return;
     hideManualFoodSuggestions();
-  });
-  recalculateItemsButtonEl.addEventListener("click", () => {
-    recalculateDetectedItems()
-      .then(() => {
-        syncCurrentAnalysisFromItems();
-        setMessage("Позиції перераховано. Можна додавати в щоденник.");
-      })
-      .catch((error) => setMessage(error.message, true));
   });
   detectedItemsListEl.addEventListener("change", (event) => {
     const target = event.target;
