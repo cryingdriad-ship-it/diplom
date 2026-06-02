@@ -105,7 +105,7 @@ const detectedItemsListEl = byId("detected-items-list");
 const addItemButtonEl = byId("add-item-button");
 const recalculateItemsButtonEl = byId("recalculate-items-button");
 const manualFoodQueryEl = byId("manual-food-query");
-const manualFoodSuggestionsEl = byId("manual-food-suggestions");
+const manualFoodSuggestBoxEl = byId("manual-food-suggest-box");
 const manualSearchButtonEl = byId("manual-search-button");
 const toggleSettingsButtonEl = byId("toggle-settings-button");
 const settingsPanelEl = byId("settings-panel");
@@ -149,6 +149,8 @@ let currentProviderSource = "Manual";
 let currentConfidence = 0;
 let settingsPanelCollapsed = false;
 let manualSuggestTimer = null;
+let manualSuggestionItems = [];
+let manualSuggestHideTimer = null;
 let profileSettings = {
   sex: "female",
   heightCm: 165,
@@ -869,12 +871,30 @@ async function addManualItemFromSearch() {
 }
 
 function renderManualFoodSuggestions(suggestions = []) {
-  manualFoodSuggestionsEl.innerHTML = "";
-  suggestions.forEach((name) => {
-    const option = document.createElement("option");
-    option.value = name;
-    manualFoodSuggestionsEl.appendChild(option);
+  manualSuggestionItems = Array.isArray(suggestions) ? suggestions.slice(0, 10) : [];
+  manualFoodSuggestBoxEl.innerHTML = "";
+  if (!manualSuggestionItems.length) {
+    manualFoodSuggestBoxEl.classList.add("hidden");
+    return;
+  }
+  manualSuggestionItems.forEach((name) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "manual-suggest-item";
+    button.dataset.name = name;
+    button.textContent = name;
+    manualFoodSuggestBoxEl.appendChild(button);
   });
+  manualFoodSuggestBoxEl.classList.remove("hidden");
+}
+
+function hideManualFoodSuggestions() {
+  manualFoodSuggestBoxEl.classList.add("hidden");
+}
+
+function applyManualSuggestion(name) {
+  manualFoodQueryEl.value = name;
+  hideManualFoodSuggestions();
 }
 
 async function fetchManualFoodSuggestions(query) {
@@ -1304,15 +1324,40 @@ function wireEvents() {
       fetchManualFoodSuggestions(manualFoodQueryEl.value).catch(() => {});
     }, 220);
   });
-  manualFoodQueryEl.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    addManualItemFromSearch().catch((error) => setMessage(error.message, true));
-  });
   manualFoodQueryEl.addEventListener("focus", () => {
+    if (manualSuggestHideTimer) {
+      clearTimeout(manualSuggestHideTimer);
+      manualSuggestHideTimer = null;
+    }
     if (manualFoodQueryEl.value.trim().length >= 2) {
       fetchManualFoodSuggestions(manualFoodQueryEl.value).catch(() => {});
     }
+  });
+  manualFoodQueryEl.addEventListener("blur", () => {
+    manualSuggestHideTimer = setTimeout(() => {
+      hideManualFoodSuggestions();
+    }, 140);
+  });
+  manualFoodSuggestBoxEl.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+  });
+  manualFoodSuggestBoxEl.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const item = target.closest(".manual-suggest-item");
+    if (!(item instanceof HTMLElement)) return;
+    const name = item.dataset.name || "";
+    if (!name) return;
+    applyManualSuggestion(name);
+  });
+  manualFoodQueryEl.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideManualFoodSuggestions();
+      return;
+    }
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addManualItemFromSearch().catch((error) => setMessage(error.message, true));
   });
   recalculateItemsButtonEl.addEventListener("click", () => {
     recalculateDetectedItems()

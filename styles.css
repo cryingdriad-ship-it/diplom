@@ -659,9 +659,48 @@ select:focus {
   min-width: 3.8rem;
 }
 
-#manual-food-query {
+.manual-food-search-wrap {
+  position: relative;
   flex: 1 1 280px;
-  min-width: 200px;
+  min-width: 220px;
+}
+
+#manual-food-query {
+  width: 100%;
+  min-width: 0;
+}
+
+.manual-food-suggest-box {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid rgba(146, 210, 174, 0.72);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 20px rgba(21, 48, 33, 0.14);
+  z-index: 8;
+}
+
+.manual-suggest-item {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid rgba(226, 241, 233, 0.95);
+  background: #fff;
+  text-align: left;
+  padding: 0.58rem 0.74rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.manual-suggest-item:last-child {
+  border-bottom: 0;
+}
+
+.manual-suggest-item:hover {
+  background: #f3fff7;
 }
 
 .detected-item-row small {
