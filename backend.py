@@ -52,7 +52,13 @@ OPENAI_API_KEY = os.getenv(
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
 HUGGINGFACE_API_TOKEN = os.getenv(
     "HUGGINGFACE_API_TOKEN",
-    os.getenv("HUGGINGFACE_TOKEN", os.getenv("HF_TOKEN", "")),
+    os.getenv(
+        "HUGGINGFACE_TOKEN",
+        os.getenv(
+            "HF_TOKEN",
+            os.getenv("HUGGINGFACEHUB_API_TOKEN", os.getenv("HF_API_TOKEN", os.getenv("HUGGINGFACE_ACCESS_TOKEN", ""))),
+        ),
+    ),
 ).strip()
 HUGGINGFACE_FOOD_MODELS = [
     model.strip()
@@ -291,6 +297,18 @@ def normalize_label(label: str) -> str:
     return re.sub(r"\s+", " ", (label or "").replace("_", " ").strip())
 
 
+def tokenize_text(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ]+", (text or "").lower())
+
+
+def is_query_match(query: str, candidate_name: str) -> bool:
+    query_tokens = [token for token in tokenize_text(query) if len(token) >= 3]
+    if not query_tokens:
+        return False
+    candidate_text = (candidate_name or "").lower()
+    return any(token in candidate_text for token in query_tokens)
+
+
 def unique_labels(candidates: list[str], limit: int = 5) -> list[str]:
     labels = []
     seen = set()
@@ -526,8 +544,11 @@ def fetch_openfoodfacts_food(query: str) -> Optional[FoodResult]:
         carbs = float(nutriments.get("carbohydrates_100g", 0) or 0)
         if calories <= 0:
             return None
+        product_name = product.get("product_name") or query
+        if not is_query_match(query, product_name):
+            return None
         return FoodResult(
-            name=product.get("product_name") or query,
+            name=product_name,
             grams=100.0,
             calories=calories,
             protein=protein,
@@ -583,7 +604,12 @@ def fetch_usda_food(query: str) -> Optional[FoodResult]:
         foods = data.get("foods", [])
         if not foods:
             return None
-        return extract_usda_nutrients(foods[0])
+        result = extract_usda_nutrients(foods[0])
+        if not result:
+            return None
+        if not is_query_match(query, result.name):
+            return None
+        return result
     except requests.RequestException:
         return None
 
@@ -756,8 +782,11 @@ def fetch_fatsecret_food(query: str) -> Optional[FoodResult]:
 
         serving = servings[0]
         grams = parse_serving_description(serving.get("serving_description", ""))
+        food_name = first_food.get("food_name", query)
+        if not is_query_match(query, food_name):
+            return None
         return FoodResult(
-            name=first_food.get("food_name", query),
+            name=food_name,
             grams=grams,
             calories=parse_float(serving.get("calories")),
             protein=parse_float(serving.get("protein")),
@@ -778,7 +807,7 @@ def fallback_food(query: str) -> FoodResult:
     return FoodResult(name=query or "Unknown food", grams=100.0, calories=220, protein=10, fat=8, carbs=25, source="Fallback")
 
 
-def lookup_food(query: str, grams_hint: float = 100.0) -> FoodResult:
+def lookup_food_without_fallback(query: str, grams_hint: float = 100.0) -> Optional[FoodResult]:
     edamam = fetch_edamam_food(query, grams_hint)
     if edamam:
         return edamam
@@ -795,6 +824,13 @@ def lookup_food(query: str, grams_hint: float = 100.0) -> FoodResult:
     if off:
         return off
 
+    return None
+
+
+def lookup_food(query: str, grams_hint: float = 100.0) -> FoodResult:
+    matched = lookup_food_without_fallback(query, grams_hint)
+    if matched:
+        return matched
     return fallback_food(query)
 
 
@@ -1056,10 +1092,16 @@ def create_app() -> Flask:
         payload = request.get_json(silent=True) or {}
         query = (payload.get("query") or "").strip()
         grams = max(1.0, parse_float(payload.get("grams") or 100))
+        strict_search = bool(payload.get("strictSearch"))
         if not query:
             return jsonify({"error": "Не вказано назву/опис страви"}), 400
 
-        food = lookup_food(query, grams)
+        if strict_search:
+            food = lookup_food_without_fallback(query, grams)
+            if not food:
+                return jsonify({"error": "Страву не знайдено у базах даних. Уточніть назву."}), 404
+        else:
+            food = lookup_food(query, grams)
         estimate = apply_gram_multiplier(food, grams)
         return jsonify(
             {

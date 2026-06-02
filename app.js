@@ -333,8 +333,11 @@ async function loadProfileSettings(authMePayload = null) {
 }
 
 function renderSettingsPanelState() {
-  settingsPanelEl.classList.toggle("hidden", settingsPanelCollapsed);
-  toggleSettingsButtonEl.textContent = settingsPanelCollapsed ? "Показати налаштування" : "Сховати налаштування";
+  settingsPanelEl.classList.toggle("collapsed", settingsPanelCollapsed);
+  toggleSettingsButtonEl.classList.toggle("collapsed", settingsPanelCollapsed);
+  const actionLabel = settingsPanelCollapsed ? "Показати налаштування" : "Сховати налаштування";
+  toggleSettingsButtonEl.setAttribute("aria-label", actionLabel);
+  toggleSettingsButtonEl.title = actionLabel;
 }
 
 function toggleSettingsPanel() {
@@ -811,18 +814,23 @@ function renderDetectedItemsEditor() {
   });
 }
 
-async function estimateItem(query, grams) {
+async function estimateItem(query, grams, options = {}) {
+  const strictSearch = Boolean(options.strictSearch);
+  const allowLocalFallback = options.allowLocalFallback !== false;
   try {
     return await api("/api/food/estimate", {
       method: "POST",
-      body: JSON.stringify({ query, grams })
+      body: JSON.stringify({ query, grams, strictSearch })
     });
-  } catch {
+  } catch (error) {
+    if (strictSearch || !allowLocalFallback) {
+      throw error;
+    }
     return localEstimate(query, grams);
   }
 }
 
-async function recalculateSingleItem(itemId) {
+async function recalculateSingleItem(itemId, options = {}) {
   const targetItem = currentDetectedItems.find((item) => item.id === itemId);
   if (!targetItem) {
     return;
@@ -831,7 +839,12 @@ async function recalculateSingleItem(itemId) {
   const grams = Math.max(1, Number(targetItem.grams || 1));
   targetItem.label = normalizedLabel;
   targetItem.grams = grams;
-  targetItem.estimate = await estimateItem(normalizedLabel, grams);
+  try {
+    targetItem.estimate = await estimateItem(normalizedLabel, grams, options);
+  } catch (error) {
+    targetItem.estimate = null;
+    throw error;
+  }
 }
 
 async function addManualItemFromSearch() {
@@ -841,7 +854,7 @@ async function addManualItemFromSearch() {
     return;
   }
   const grams = Math.max(1, Number(gramsInputEl.value || 100));
-  const estimate = await estimateItem(query, grams);
+  const estimate = await estimateItem(query, grams, { strictSearch: true, allowLocalFallback: false });
   const item = makeDetectedItem(query, grams);
   item.estimate = estimate;
   currentDetectedItems.push(item);
@@ -1291,12 +1304,16 @@ function wireEvents() {
     if (action === "grams" && target instanceof HTMLInputElement) {
       item.grams = Math.max(1, Number(target.value || item.grams || 1));
     }
-    recalculateSingleItem(item.id)
+    recalculateSingleItem(item.id, { strictSearch: true, allowLocalFallback: false })
       .then(() => {
         renderDetectedItemsEditor();
         syncCurrentAnalysisFromItems();
       })
-      .catch((error) => setMessage(error.message, true));
+      .catch((error) => {
+        renderDetectedItemsEditor();
+        syncCurrentAnalysisFromItems();
+        setMessage(error.message, true);
+      });
   });
   detectedItemsListEl.addEventListener("click", (event) => {
     const target = event.target;
@@ -1304,13 +1321,17 @@ function wireEvents() {
     const rowEl = target.closest(".detected-item-row");
     if (!rowEl) return;
     if (target.dataset.action === "find") {
-      recalculateSingleItem(rowEl.dataset.id)
+      recalculateSingleItem(rowEl.dataset.id, { strictSearch: true, allowLocalFallback: false })
         .then(() => {
           renderDetectedItemsEditor();
           syncCurrentAnalysisFromItems();
           setMessage("Позицію перераховано з бази.");
         })
-        .catch((error) => setMessage(error.message, true));
+        .catch((error) => {
+          renderDetectedItemsEditor();
+          syncCurrentAnalysisFromItems();
+          setMessage(error.message, true);
+        });
       return;
     }
     if (target.dataset.action !== "remove") return;

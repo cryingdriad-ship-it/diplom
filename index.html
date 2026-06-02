@@ -213,9 +213,6 @@
             <h2>Редагувати розпізнавання:</h2>
             <p id="accountEmail" class="status">—</p>
             <p id="sessionModeBadge" class="status">Не авторизовано</p>
-            <div class="controls">
-              <button id="toggle-settings-button" class="btn ghost motion-cta" type="button">Сховати налаштування</button>
-            </div>
             <div class="detected-editor">
               <h3>Страви на фото</h3>
               <p class="status">Можна змінити назву/грамовку, прибрати зайві або додати нову позицію.</p>
@@ -227,7 +224,17 @@
                 <button id="recalculate-items-button" class="btn outline-accent motion-cta" type="button">Перерахувати обрані</button>
               </div>
             </div>
-            <div id="settings-panel">
+            <div class="settings-panel-wrap">
+              <button
+                id="toggle-settings-button"
+                class="settings-toggle-side"
+                type="button"
+                aria-label="Сховати налаштування"
+                title="Сховати налаштування"
+              >
+                <span id="settings-toggle-arrow">❮</span>
+              </button>
+              <div id="settings-panel">
               <div class="profile-editor">
                 <h3>Персональна ціль калорій</h3>
                 <p class="status">Вкажіть параметри тіла та режим: підтримка, схуднення або набір.</p>
@@ -272,6 +279,7 @@
                 </label>
                 <input id="view-date" type="hidden" />
               </div>
+              </div>
             </div>
             <div class="controls">
               <button id="save-entry" class="btn accent motion-cta" disabled type="button">Додати у щоденник</button>
@@ -302,6 +310,6 @@
     <script src="./firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=12"></script>
+    <script type="module" src="./app.js?v=13"></script>
   </body>
 </html>

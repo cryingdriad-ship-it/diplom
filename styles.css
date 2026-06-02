@@ -679,6 +679,60 @@ select:focus {
   gap: 0.28rem;
 }
 
+.settings-panel-wrap {
+  position: relative;
+  margin-bottom: 0.4rem;
+}
+
+.settings-toggle-side {
+  position: absolute;
+  right: -0.95rem;
+  top: 0.75rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(149, 205, 173, 0.7);
+  background: rgba(255, 255, 255, 0.95);
+  color: #1f5439;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(32, 69, 48, 0.12);
+  transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+  z-index: 3;
+}
+
+.settings-toggle-side:hover {
+  background: #f5fff8;
+  box-shadow: 0 10px 22px rgba(32, 69, 48, 0.18);
+  transform: translateX(-2px);
+}
+
+#settings-toggle-arrow {
+  display: inline-block;
+  transition: transform 0.25s ease;
+}
+
+#settings-panel {
+  max-height: 1200px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.34s ease, opacity 0.24s ease, margin 0.24s ease;
+}
+
+#settings-panel.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.settings-toggle-side.collapsed #settings-toggle-arrow {
+  transform: rotate(180deg);
+}
+
 #dashboard-photo-input {
   margin-bottom: 0.7rem;
 }
@@ -882,6 +936,11 @@ progress {
 
   .profile-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-toggle-side {
+    right: -0.4rem;
+    top: 0.45rem;
   }
 }
 
