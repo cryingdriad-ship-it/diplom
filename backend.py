@@ -32,7 +32,10 @@ def load_local_env_file(path: str) -> None:
                 key = key.strip()
                 if not key:
                     continue
-                os.environ.setdefault(key, value.strip().strip("\"'"))
+                cleaned_value = value.strip().strip("\"'")
+                existing_value = os.getenv(key, "").strip()
+                if not existing_value:
+                    os.environ[key] = cleaned_value
     except OSError:
         return
 
@@ -50,16 +53,22 @@ OPENAI_API_KEY = os.getenv(
     os.getenv("OPENAI_KEY", os.getenv("OPENAI_TOKEN", "")),
 ).strip()
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
-HUGGINGFACE_API_TOKEN = os.getenv(
-    "HUGGINGFACE_API_TOKEN",
-    os.getenv(
+def get_huggingface_token() -> str:
+    for key in (
+        "HUGGINGFACE_API_TOKEN",
         "HUGGINGFACE_TOKEN",
-        os.getenv(
-            "HF_TOKEN",
-            os.getenv("HUGGINGFACEHUB_API_TOKEN", os.getenv("HF_API_TOKEN", os.getenv("HUGGINGFACE_ACCESS_TOKEN", ""))),
-        ),
-    ),
-).strip()
+        "HF_TOKEN",
+        "HUGGINGFACEHUB_API_TOKEN",
+        "HF_API_TOKEN",
+        "HUGGINGFACE_ACCESS_TOKEN",
+    ):
+        value = os.getenv(key, "").strip()
+        if value:
+            return value
+    return ""
+
+
+HUGGINGFACE_API_TOKEN = get_huggingface_token()
 HUGGINGFACE_FOOD_MODELS = [
     model.strip()
     for model in os.getenv(
@@ -100,6 +109,31 @@ DEFAULT_CALORIES_BY_LABEL = {
     "fish": ("Fish", 233, 25, 14, 0),
     "cake": ("Cake", 350, 4, 18, 43),
 }
+LOCAL_FOOD_LIBRARY = [
+    {"name": "Chicken breast", "aliases": ["chicken breast", "chicken", "куряча грудка", "куриная грудка"], "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+    {"name": "Beef steak", "aliases": ["beef steak", "steak", "beef", "стейк", "говядина"], "calories": 271, "protein": 25, "fat": 19, "carbs": 0},
+    {"name": "Salad", "aliases": ["salad", "mixed salad", "салат"], "calories": 120, "protein": 4, "fat": 7, "carbs": 10},
+    {"name": "Rice cooked", "aliases": ["rice", "white rice", "рис"], "calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
+    {"name": "Buckwheat cooked", "aliases": ["buckwheat", "гречка", "гречневая каша"], "calories": 110, "protein": 4.2, "fat": 1.1, "carbs": 21.3},
+    {"name": "Oatmeal", "aliases": ["oatmeal", "oats", "вівсянка", "овсянка"], "calories": 88, "protein": 3, "fat": 1.4, "carbs": 15},
+    {"name": "Egg boiled", "aliases": ["egg", "boiled egg", "яйце", "яйцо"], "calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+    {"name": "Salmon", "aliases": ["salmon", "лосось", "семга"], "calories": 208, "protein": 20, "fat": 13, "carbs": 0},
+    {"name": "Tuna", "aliases": ["tuna", "тунец"], "calories": 132, "protein": 28, "fat": 1.3, "carbs": 0},
+    {"name": "Potato boiled", "aliases": ["potato", "boiled potato", "картопля", "картофель"], "calories": 87, "protein": 1.9, "fat": 0.1, "carbs": 20},
+    {"name": "Pasta cooked", "aliases": ["pasta", "макарони", "макароны"], "calories": 158, "protein": 5.8, "fat": 0.9, "carbs": 31},
+    {"name": "Cottage cheese 5%", "aliases": ["cottage cheese", "творог", "сир кисломолочний"], "calories": 121, "protein": 17, "fat": 5, "carbs": 2.8},
+    {"name": "Greek yogurt", "aliases": ["greek yogurt", "yogurt", "йогурт"], "calories": 73, "protein": 10, "fat": 2, "carbs": 3.9},
+    {"name": "Banana", "aliases": ["banana", "банан"], "calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
+    {"name": "Apple", "aliases": ["apple", "яблуко", "яблоко"], "calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+    {"name": "Bread", "aliases": ["bread", "хліб", "хлеб"], "calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
+    {"name": "Buckwheat with chicken", "aliases": ["гречка з куркою", "гречка с курицей", "buckwheat with chicken"], "calories": 145, "protein": 11, "fat": 3.4, "carbs": 18},
+    {"name": "Caesar salad", "aliases": ["caesar salad", "салат цезарь", "цезар"], "calories": 190, "protein": 10, "fat": 14, "carbs": 7},
+    {"name": "Borscht", "aliases": ["borscht", "борщ"], "calories": 49, "protein": 2, "fat": 2.2, "carbs": 6},
+    {"name": "Omelette", "aliases": ["omelette", "омлет"], "calories": 154, "protein": 10, "fat": 12, "carbs": 1.9},
+    {"name": "Syrniki", "aliases": ["syrniki", "сирники"], "calories": 220, "protein": 13, "fat": 10, "carbs": 20},
+    {"name": "Pilaf", "aliases": ["pilaf", "plov", "плов"], "calories": 190, "protein": 6, "fat": 7, "carbs": 27},
+    {"name": "Shawarma", "aliases": ["shawarma", "шаурма"], "calories": 250, "protein": 13, "fat": 12, "carbs": 23},
+]
 ALLOWED_SEX_VALUES = {"male", "female"}
 ALLOWED_GOAL_MODES = {"loss", "maintain", "gain"}
 DEFAULT_USER_PROFILE = {
@@ -309,6 +343,40 @@ def is_query_match(query: str, candidate_name: str) -> bool:
     return any(token in candidate_text for token in query_tokens)
 
 
+def search_local_food_library(query: str) -> Optional[FoodResult]:
+    query_text = (query or "").strip().lower()
+    if not query_text:
+        return None
+    query_tokens = [token for token in tokenize_text(query_text) if len(token) >= 2]
+    best_item = None
+    best_score = 0
+    for item in LOCAL_FOOD_LIBRARY:
+        aliases = [str(alias).lower() for alias in item.get("aliases", [])]
+        score = 0
+        for alias in aliases:
+            if query_text == alias:
+                score = max(score, 8)
+            elif query_text in alias or alias in query_text:
+                score = max(score, 6)
+            if query_tokens:
+                token_hits = sum(1 for token in query_tokens if token in alias)
+                score = max(score, token_hits * 2)
+        if score > best_score:
+            best_score = score
+            best_item = item
+    if not best_item or best_score < 3:
+        return None
+    return FoodResult(
+        name=best_item["name"],
+        grams=100.0,
+        calories=float(best_item["calories"]),
+        protein=float(best_item["protein"]),
+        fat=float(best_item["fat"]),
+        carbs=float(best_item["carbs"]),
+        source="Local food library",
+    )
+
+
 def unique_labels(candidates: list[str], limit: int = 5) -> list[str]:
     labels = []
     seen = set()
@@ -410,9 +478,10 @@ def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Option
         endpoints.append("https://router.huggingface.co/hf-inference/models/{model_name}")
     if HUGGINGFACE_LEGACY_DNS_AVAILABLE:
         endpoints.append("https://api-inference.huggingface.co/models/{model_name}")
+    hf_token = get_huggingface_token()
     headers = {"Content-Type": "application/octet-stream"}
-    if HUGGINGFACE_API_TOKEN:
-        headers["Authorization"] = f"Bearer {HUGGINGFACE_API_TOKEN}"
+    if hf_token:
+        headers["Authorization"] = f"Bearer {hf_token}"
 
     last_error = None
     for model_name in HUGGINGFACE_FOOD_MODELS:
@@ -422,7 +491,7 @@ def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Option
                 response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=20)
                 if response.status_code == 503:
                     response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=30)
-                if response.status_code == 401 and not HUGGINGFACE_API_TOKEN:
+                if response.status_code == 401 and not hf_token:
                     last_error = "HuggingFace token is required for this endpoint"
                     continue
                 if response.status_code >= 400:
@@ -824,6 +893,10 @@ def lookup_food_without_fallback(query: str, grams_hint: float = 100.0) -> Optio
     if off:
         return off
 
+    local_match = search_local_food_library(query)
+    if local_match:
+        return local_match
+
     return None
 
 
@@ -986,7 +1059,7 @@ def create_app() -> Flask:
                     "huggingFaceConfigured": True,
                     "huggingFaceDnsResolved": HUGGINGFACE_DNS_AVAILABLE,
                     "huggingFaceLegacyDnsResolved": HUGGINGFACE_LEGACY_DNS_AVAILABLE,
-                    "huggingFaceTokenConfigured": bool(HUGGINGFACE_API_TOKEN),
+                    "huggingFaceTokenConfigured": bool(get_huggingface_token()),
                     "openAIVisionConfigured": bool(OPENAI_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,
