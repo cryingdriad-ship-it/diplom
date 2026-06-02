@@ -60,6 +60,12 @@ const calorieGaugeEl = byId("calorieGauge");
 const gaugeCaloriesEl = byId("gauge-calories");
 const gaugeRemainingEl = byId("gauge-remaining");
 const gaugeTargetEl = byId("gauge-target");
+const summaryCarbBarEl = byId("summary-carb-bar");
+const summaryProteinBarEl = byId("summary-protein-bar");
+const summaryFatBarEl = byId("summary-fat-bar");
+const summaryCarbStatEl = byId("summary-carb-stat");
+const summaryProteinStatEl = byId("summary-protein-stat");
+const summaryFatStatEl = byId("summary-fat-stat");
 const statProteinEl = byId("stat-protein");
 const statToTargetEl = byId("stat-to-target");
 const vizProteinBarEl = byId("viz-protein-bar");
@@ -616,17 +622,30 @@ function renderTotals() {
   const percent = target ? Math.min(200, round((calories / target) * 100)) : 0;
   const gaugePercent = Math.min(100, Math.max(0, percent));
   const remaining = round(target - calories);
+  const proteinTarget = Math.max(1, Math.round((target * 0.25) / 4));
+  const fatTarget = Math.max(1, Math.round((target * 0.3) / 9));
+  const carbTarget = Math.max(1, Math.round((target * 0.45) / 4));
+  const proteinDone = round(currentDayTotals.protein);
+  const fatDone = round(currentDayTotals.fat);
+  const carbDone = round(currentDayTotals.carbs);
+
   totalCaloriesEl.textContent = `${calories} ккал`;
   targetCaloriesEl.textContent = `${target} ккал`;
   targetPercentEl.textContent = `${percent}%`;
   targetProgressEl.value = Math.min(percent, 100);
-  macroRatioEl.textContent = `${round(currentDayTotals.protein)} / ${round(currentDayTotals.fat)} / ${round(currentDayTotals.carbs)} г`;
+  macroRatioEl.textContent = `${proteinDone} / ${fatDone} / ${carbDone} г`;
   gaugeCaloriesEl.textContent = `${Math.round(calories)} ккал`;
   gaugeRemainingEl.textContent = remaining >= 0 ? `${Math.round(remaining)} ккал` : `+${Math.round(Math.abs(remaining))} ккал`;
   gaugeTargetEl.textContent = `${Math.round(target)} ккал`;
   calorieGaugeEl.style.setProperty("--gauge", String(gaugePercent));
-  statProteinEl.textContent = `${round(currentDayTotals.protein)} грам`;
-  statToTargetEl.textContent = remaining >= 0 ? `- ${remaining} ккал` : `+ ${Math.abs(remaining)} ккал`;
+  summaryProteinBarEl.style.width = `${Math.min(100, Math.round((proteinDone / proteinTarget) * 100))}%`;
+  summaryFatBarEl.style.width = `${Math.min(100, Math.round((fatDone / fatTarget) * 100))}%`;
+  summaryCarbBarEl.style.width = `${Math.min(100, Math.round((carbDone / carbTarget) * 100))}%`;
+  summaryProteinStatEl.textContent = `${proteinDone} / ${proteinTarget} г`;
+  summaryFatStatEl.textContent = `${fatDone} / ${fatTarget} г`;
+  summaryCarbStatEl.textContent = `${carbDone} / ${carbTarget} г`;
+  statProteinEl.textContent = `Белки: ${proteinDone} г`;
+  statToTargetEl.textContent = remaining >= 0 ? `Баланс: - ${remaining} ккал` : `Баланс: + ${Math.abs(remaining)} ккал`;
 }
 
 function renderDiary(entries) {

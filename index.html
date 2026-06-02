@@ -135,32 +135,48 @@
         </header>
 
         <section class="panel glass-card stats-hero">
-          <div class="calorie-overview">
-            <div class="calorie-cards">
-              <article class="mini-card mint">
-                <p>Спожито</p>
-                <strong id="gauge-calories">0 ккал</strong>
-              </article>
-              <article class="mini-card sky">
-                <p>Залишилось</p>
-                <strong id="gauge-remaining">0 ккал</strong>
-              </article>
-              <article class="mini-card lemon">
-                <p>Ціль</p>
-                <strong id="gauge-target">0 ккал</strong>
-              </article>
+          <header class="summary-head">
+            <h3>Сводка</h3>
+            <p>Подробности</p>
+          </header>
+          <div class="summary-main">
+            <article class="summary-metric">
+              <strong id="gauge-calories">0 ккал</strong>
+              <span>Съедено</span>
+            </article>
+            <div class="summary-ring-wrap">
+              <div id="calorieGauge" class="summary-ring">
+                <div class="summary-ring-center">
+                  <strong id="gauge-remaining">0 ккал</strong>
+                  <span>Осталось</span>
+                </div>
+              </div>
             </div>
-            <div id="calorieGauge" class="calorie-progress-track"><i></i></div>
+            <article class="summary-metric">
+              <strong id="gauge-target">0 ккал</strong>
+              <span>Цель</span>
+            </article>
           </div>
-          <div class="quick-stats">
-            <article class="mini-card lilac">
-              <p>Білки</p>
-              <strong id="stat-protein">0 грам</strong>
+          <div class="summary-macros">
+            <article class="summary-macro">
+              <p>Углеводы</p>
+              <div class="summary-track"><i id="summary-carb-bar"></i></div>
+              <strong id="summary-carb-stat">0 / 0 г</strong>
             </article>
-            <article class="mini-card sand">
-              <p>Баланс</p>
-              <strong id="stat-to-target">0 kcal</strong>
+            <article class="summary-macro">
+              <p>Белки</p>
+              <div class="summary-track"><i id="summary-protein-bar"></i></div>
+              <strong id="summary-protein-stat">0 / 0 г</strong>
             </article>
+            <article class="summary-macro">
+              <p>Жиры</p>
+              <div class="summary-track"><i id="summary-fat-bar"></i></div>
+              <strong id="summary-fat-stat">0 / 0 г</strong>
+            </article>
+          </div>
+          <div class="summary-foot">
+            <span id="stat-protein">Белки: 0 г</span>
+            <span id="stat-to-target">Баланс: 0 ккал</span>
           </div>
         </section>
 

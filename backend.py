@@ -71,7 +71,9 @@ OPENAI_API_KEY = os.getenv(
     os.getenv("OPENAI_KEY", os.getenv("OPENAI_TOKEN", "")),
 ).strip()
 OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
-def get_huggingface_token() -> str:
+
+
+def get_huggingface_token_with_source() -> tuple[str, str]:
     env_path = os.path.join(BASE_DIR, ".env")
     for key in (
         "HUGGINGFACE_API_TOKEN",
@@ -83,11 +85,16 @@ def get_huggingface_token() -> str:
     ):
         local_file_value = read_local_env_value(env_path, key).strip()
         if local_file_value:
-            return local_file_value
+            return local_file_value, f"{key} (.env)"
         value = os.getenv(key, "").strip()
         if value:
-            return value
-    return ""
+            return value, f"{key} (env)"
+    return "", "not found"
+
+
+def get_huggingface_token() -> str:
+    token, _ = get_huggingface_token_with_source()
+    return token
 
 
 HUGGINGFACE_API_TOKEN = get_huggingface_token()
@@ -196,6 +203,16 @@ LOCAL_FOOD_LIBRARY = [
     {"name": "Wholegrain bread", "aliases": ["wholegrain bread", "цельнозерновой хлеб", "цільнозерновий хліб"], "calories": 247, "protein": 13, "fat": 4.2, "carbs": 41},
     {"name": "Croissant", "aliases": ["croissant", "круасан", "круассан"], "calories": 406, "protein": 8.2, "fat": 21, "carbs": 45},
     {"name": "Chocolate", "aliases": ["chocolate", "шоколад"], "calories": 546, "protein": 4.9, "fat": 31, "carbs": 61},
+    {"name": "Sushi roll", "aliases": ["sushi", "рол", "ролл", "суши"], "calories": 146, "protein": 6, "fat": 5, "carbs": 19},
+    {"name": "Ramen", "aliases": ["ramen", "рамен"], "calories": 99, "protein": 4.5, "fat": 3.1, "carbs": 13},
+    {"name": "Khachapuri", "aliases": ["khachapuri", "хачапури"], "calories": 285, "protein": 10, "fat": 15, "carbs": 28},
+    {"name": "Vinaigrette salad", "aliases": ["vinaigrette", "винегрет"], "calories": 120, "protein": 2.1, "fat": 7.5, "carbs": 10.5},
+    {"name": "Hummus", "aliases": ["hummus", "хумус"], "calories": 166, "protein": 8, "fat": 10, "carbs": 14},
+    {"name": "Cucumber", "aliases": ["cucumber", "огірок", "огурец"], "calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
+    {"name": "Tomato", "aliases": ["tomato", "помідор", "помидор"], "calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
+    {"name": "Cabbage salad", "aliases": ["cabbage salad", "салат з капусти", "салат из капусты"], "calories": 70, "protein": 1.7, "fat": 4.2, "carbs": 6.8},
+    {"name": "Apple pie", "aliases": ["apple pie", "шарлотка", "яблучний пиріг", "яблочный пирог"], "calories": 237, "protein": 2.4, "fat": 11, "carbs": 33},
+    {"name": "Ice cream", "aliases": ["ice cream", "морозиво", "мороженое"], "calories": 207, "protein": 3.5, "fat": 11, "carbs": 24},
 ]
 ALLOWED_SEX_VALUES = {"male", "female"}
 ALLOWED_GOAL_MODES = {"loss", "maintain", "gain"}
@@ -603,6 +620,12 @@ def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Option
                     response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=30)
                 if response.status_code == 401 and not hf_token:
                     last_error = "HuggingFace token is required for this endpoint"
+                    continue
+                if response.status_code == 401 and hf_token:
+                    last_error = (
+                        "HuggingFace HTTP 401: invalid or expired access token. "
+                        "Use an hf_* Access Token (not account password)."
+                    )
                     continue
                 if response.status_code >= 400:
                     last_error = f"HuggingFace HTTP {response.status_code}: {response_error_text(response)}"
@@ -1170,6 +1193,7 @@ def create_app() -> Flask:
                     "huggingFaceDnsResolved": HUGGINGFACE_DNS_AVAILABLE,
                     "huggingFaceLegacyDnsResolved": HUGGINGFACE_LEGACY_DNS_AVAILABLE,
                     "huggingFaceTokenConfigured": bool(get_huggingface_token()),
+                    "huggingFaceTokenSource": get_huggingface_token_with_source()[1],
                     "openAIVisionConfigured": bool(OPENAI_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
                     "fallbackMobileNet": True,

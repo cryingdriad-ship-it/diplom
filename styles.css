@@ -483,46 +483,148 @@ select:focus {
 
 .stats-hero {
   display: grid;
-  grid-template-columns: 1.25fr 0.75fr;
-  gap: 0.6rem;
-  padding: 0.65rem;
-  min-height: 176px;
+  gap: 0.8rem;
+  padding: 0.9rem;
   background: linear-gradient(140deg, rgba(147, 231, 92, 0.7), rgba(110, 224, 195, 0.62));
 }
 
-.calorie-overview {
-  display: grid;
-  gap: 0.5rem;
+.summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
 }
 
-.calorie-cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
+.summary-head h3 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.6vw, 2.4rem);
 }
 
-.calorie-progress-track {
+.summary-head p {
+  margin: 0;
+  font-size: clamp(1.2rem, 1.9vw, 2rem);
+  color: #0d6757;
+  font-weight: 700;
+}
+
+.summary-main {
+  display: grid;
+  grid-template-columns: 0.9fr 1.2fr 0.9fr;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.summary-metric {
+  text-align: center;
+}
+
+.summary-metric strong {
+  display: block;
+  font-size: clamp(1.4rem, 2.7vw, 2.6rem);
+  line-height: 1.05;
+}
+
+.summary-metric span {
+  color: #49535b;
+  font-size: 1.15rem;
+}
+
+.summary-ring-wrap {
+  display: grid;
+  place-items: center;
+}
+
+.summary-ring {
   --gauge: 0;
-  height: 12px;
-  border-radius: 999px;
+  width: min(100%, 280px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
   position: relative;
-  overflow: clip;
-  background: rgba(255, 255, 255, 0.42);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  background: conic-gradient(#00b39b calc(var(--gauge) * 1%), #edf0f1 0);
 }
 
-.calorie-progress-track i {
+.summary-ring::before {
   content: "";
   position: absolute;
-  inset: 0;
-  width: calc(var(--gauge) * 1%);
+  width: 72%;
+  height: 72%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(234, 239, 241, 0.95);
+}
+
+.summary-ring-center {
+  position: relative;
+  text-align: center;
+  z-index: 1;
+}
+
+.summary-ring-center strong {
+  display: block;
+  font-size: clamp(1.3rem, 2.8vw, 2.7rem);
+  line-height: 1.05;
+}
+
+.summary-ring-center span {
+  font-size: 1.25rem;
+  color: #566066;
+}
+
+.summary-macros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.summary-macro p {
+  margin: 0;
+  font-size: 1.65rem;
+  color: #48545b;
+}
+
+.summary-track {
+  margin-top: 0.48rem;
+  height: 14px;
+  border-radius: 999px;
+  background: #e3eaed;
+  overflow: hidden;
+}
+
+.summary-track i {
+  display: block;
+  width: 0%;
+  height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #79d96b, #40caa8);
+  background: #00b39b;
   transition: width 0.35s ease;
 }
 
-#gauge-calories {
-  font-size: clamp(1rem, 1.5vw, 1.3rem);
+.summary-macro strong {
+  display: block;
+  margin-top: 0.46rem;
+  font-size: 2rem;
+}
+
+#summary-carb-bar {
+  background: linear-gradient(90deg, #00beaa, #2fd8b2);
+}
+
+#summary-protein-bar {
+  background: linear-gradient(90deg, #00b39b, #12c5ad);
+}
+
+#summary-fat-bar {
+  background: linear-gradient(90deg, #0fa68f, #2dc9b3);
+}
+
+.summary-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  font-weight: 700;
+  color: #224848;
 }
 
 .quick-stats {
@@ -944,8 +1046,20 @@ progress {
   }
 
   .stats-hero {
-    grid-template-columns: 1fr;
     min-height: 0;
+  }
+
+  .summary-main {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .summary-ring {
+    width: min(100%, 220px);
+  }
+
+  .summary-macros {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-grid {
@@ -982,9 +1096,23 @@ progress {
     display: none;
   }
 
-  .quick-stats,
+  .summary-macros,
   .metrics {
     grid-template-columns: 1fr;
+  }
+
+  .summary-head {
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-start;
+  }
+
+  .summary-macro p {
+    font-size: 1.25rem;
+  }
+
+  .summary-macro strong {
+    font-size: 1.35rem;
   }
 
   .dashboard-shell {
