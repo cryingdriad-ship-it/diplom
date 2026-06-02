@@ -116,8 +116,12 @@ const manualFoodSearchWrapEl = byId("manual-food-search-wrap");
 const manualFoodQueryEl = byId("manual-food-query");
 const manualFoodSuggestBoxEl = byId("manual-food-suggest-box");
 const manualSearchButtonEl = byId("manual-search-button");
-const toggleSettingsButtonEl = byId("toggle-settings-button");
-const settingsPanelEl = byId("settings-panel");
+const toggleEditButtonEl = byId("toggle-edit-button");
+const toggleEditArrowEl = byId("toggle-edit-arrow");
+const editPanelContentEl = byId("edit-panel-content");
+const toggleGoalButtonEl = byId("toggle-goal-button");
+const toggleGoalArrowEl = byId("toggle-goal-arrow");
+const goalPanelContentEl = byId("goal-panel-content");
 const installButtonEl = byId("install-button");
 const chipsEl = byId("prediction-chips");
 const guessedFoodEl = byId("guessed-food");
@@ -156,7 +160,8 @@ let firebaseAuth = null;
 let currentDetectedItems = [];
 let currentProviderSource = "Manual";
 let currentConfidence = 0;
-let settingsPanelCollapsed = false;
+let editPanelCollapsed = true;
+let goalPanelCollapsed = true;
 let manualSuggestTimer = null;
 let manualSuggestionItems = [];
 let manualSuggestRequestId = 0;
@@ -345,17 +350,30 @@ async function loadProfileSettings(authMePayload = null) {
   applyProfileToForm();
 }
 
-function renderSettingsPanelState() {
-  settingsPanelEl.classList.toggle("collapsed", settingsPanelCollapsed);
-  toggleSettingsButtonEl.classList.toggle("collapsed", settingsPanelCollapsed);
-  const actionLabel = settingsPanelCollapsed ? "Показати налаштування" : "Сховати налаштування";
-  toggleSettingsButtonEl.setAttribute("aria-label", actionLabel);
-  toggleSettingsButtonEl.title = actionLabel;
+function renderCollapsiblePanels() {
+  editPanelContentEl.classList.toggle("collapsed", editPanelCollapsed);
+  toggleEditButtonEl.classList.toggle("collapsed", editPanelCollapsed);
+  toggleEditArrowEl.textContent = editPanelCollapsed ? "⌃" : "⌄";
+  const editLabel = editPanelCollapsed ? "Розгорнути блок редагування" : "Згорнути блок редагування";
+  toggleEditButtonEl.setAttribute("aria-label", editLabel);
+  toggleEditButtonEl.title = editLabel;
+
+  goalPanelContentEl.classList.toggle("collapsed", goalPanelCollapsed);
+  toggleGoalButtonEl.classList.toggle("collapsed", goalPanelCollapsed);
+  toggleGoalArrowEl.textContent = goalPanelCollapsed ? "⌃" : "⌄";
+  const goalLabel = goalPanelCollapsed ? "Розгорнути блок цілей" : "Згорнути блок цілей";
+  toggleGoalButtonEl.setAttribute("aria-label", goalLabel);
+  toggleGoalButtonEl.title = goalLabel;
 }
 
-function toggleSettingsPanel() {
-  settingsPanelCollapsed = !settingsPanelCollapsed;
-  renderSettingsPanelState();
+function toggleEditPanel() {
+  editPanelCollapsed = !editPanelCollapsed;
+  renderCollapsiblePanels();
+}
+
+function toggleGoalPanel() {
+  goalPanelCollapsed = !goalPanelCollapsed;
+  renderCollapsiblePanels();
 }
 
 function renderView() {
@@ -485,7 +503,7 @@ async function initFirebase() {
     firebaseAuth = firebaseAuthApi.getAuth(app);
     return true;
   } catch {
-    setMessage("Firebase SDK не инициализирован, использую fallback-авторизацию.", true);
+    setMessage("Firebase SDK не ініціалізовано, використовується fallback-авторизація.", true);
     return false;
   }
 }
@@ -644,7 +662,7 @@ function renderTotals() {
   summaryProteinStatEl.textContent = `${proteinDone} / ${proteinTarget} г`;
   summaryFatStatEl.textContent = `${fatDone} / ${fatTarget} г`;
   summaryCarbStatEl.textContent = `${carbDone} / ${carbTarget} г`;
-  statProteinEl.textContent = `Белки: ${proteinDone} г`;
+  statProteinEl.textContent = `Білки: ${proteinDone} г`;
   statToTargetEl.textContent = remaining >= 0 ? `Баланс: - ${remaining} ккал` : `Баланс: + ${Math.abs(remaining)} ккал`;
 }
 
@@ -1133,7 +1151,7 @@ async function submitRegister(event) {
   renderView();
   await loadDayDiary(activeDateKey());
   await loadHistory(30);
-  setMessage(firebaseAuth ? "Регистрация через Firebase успешна." : "Регистрация успешна.");
+  setMessage(firebaseAuth ? "Реєстрація через Firebase успішна." : "Реєстрація успішна.");
 }
 
 async function submitLogin(event) {
@@ -1161,7 +1179,7 @@ async function submitLogin(event) {
   renderView();
   await loadDayDiary(activeDateKey());
   await loadHistory(30);
-  setMessage(firebaseAuth ? "Вход через Firebase выполнен." : "Вход выполнен.");
+  setMessage(firebaseAuth ? "Вхід через Firebase виконано." : "Вхід виконано.");
 }
 
 function enterGuestMode() {
@@ -1194,7 +1212,7 @@ async function logout() {
   renderDiary([]);
   renderHistory([], 0);
   renderTotals();
-  setMessage("Вы вышли из аккаунта.");
+  setMessage("Ви вийшли з акаунта.");
 }
 
 function initInstallPrompt() {
@@ -1334,7 +1352,8 @@ function wireEvents() {
   profileHeightEl.addEventListener("change", onProfileChange);
   profileAgeEl.addEventListener("input", onProfileInput);
   profileAgeEl.addEventListener("change", onProfileChange);
-  toggleSettingsButtonEl.addEventListener("click", toggleSettingsPanel);
+  toggleEditButtonEl.addEventListener("click", toggleEditPanel);
+  toggleGoalButtonEl.addEventListener("click", toggleGoalPanel);
 
   addItemButtonEl.addEventListener("click", () => {
     currentDetectedItems.push(makeDetectedItem("manual food", Number(gramsInputEl.value || 150)));
@@ -1460,7 +1479,7 @@ async function init() {
   viewDateEl.value = today;
   renderDetectedItemsEditor();
   applyProfileToForm();
-  renderSettingsPanelState();
+  renderCollapsiblePanels();
   setNutritionResult(null);
   renderTotals();
   wireEvents();
@@ -1473,5 +1492,5 @@ async function init() {
 }
 
 init().catch((error) => {
-  setMessage(error.message || "Критическая ошибка инициализации.", true);
+  setMessage(error.message || "Критична помилка ініціалізації.", true);
 });
