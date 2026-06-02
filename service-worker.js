@@ -1,4 +1,4 @@
-const CACHE_NAME = "myfitnesspal-ai-cache-v12";
+const CACHE_NAME = "myfitnesspal-ai-cache-v13";
 const ASSETS = [
   "/",
   "/index.html",

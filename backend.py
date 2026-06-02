@@ -377,6 +377,53 @@ def search_local_food_library(query: str) -> Optional[FoodResult]:
     )
 
 
+def search_food_suggestions(query: str, limit: int = 8) -> list[str]:
+    query_text = (query or "").strip().lower()
+    if len(query_text) < 2:
+        return []
+    query_tokens = [token for token in tokenize_text(query_text) if len(token) >= 2]
+    scored: list[tuple[int, str]] = []
+
+    for item in LOCAL_FOOD_LIBRARY:
+        best_score = 0
+        for alias in [str(a).lower() for a in item.get("aliases", [])]:
+            if query_text == alias:
+                best_score = max(best_score, 10)
+            elif query_text in alias or alias in query_text:
+                best_score = max(best_score, 7)
+            if query_tokens:
+                hits = sum(1 for token in query_tokens if token in alias)
+                best_score = max(best_score, hits * 2)
+        if best_score > 0:
+            scored.append((best_score, item["name"]))
+
+    for alias, values in DEFAULT_CALORIES_BY_LABEL.items():
+        alias_l = alias.lower()
+        score = 0
+        if query_text == alias_l:
+            score = 6
+        elif query_text in alias_l or alias_l in query_text:
+            score = 4
+        if query_tokens:
+            hits = sum(1 for token in query_tokens if token in alias_l)
+            score = max(score, hits * 2)
+        if score > 0:
+            scored.append((score, values[0]))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    unique = []
+    seen = set()
+    for _, name in scored:
+        key = name.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(name)
+        if len(unique) >= limit:
+            break
+    return unique
+
+
 def unique_labels(candidates: list[str], limit: int = 5) -> list[str]:
     labels = []
     seen = set()
@@ -1190,6 +1237,16 @@ def create_app() -> Flask:
                 "guestMode": not bool(user_id),
             }
         )
+
+    @app.get("/api/food/search")
+    def search_food():
+        query = (request.args.get("q") or "").strip()
+        try:
+            limit = int(request.args.get("limit", "8"))
+        except ValueError:
+            limit = 8
+        limit = max(1, min(20, limit))
+        return jsonify({"query": query, "suggestions": search_food_suggestions(query, limit)})
 
     @app.post("/api/diary/entries")
     def create_entry():

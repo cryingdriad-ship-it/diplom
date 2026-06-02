@@ -105,6 +105,7 @@ const detectedItemsListEl = byId("detected-items-list");
 const addItemButtonEl = byId("add-item-button");
 const recalculateItemsButtonEl = byId("recalculate-items-button");
 const manualFoodQueryEl = byId("manual-food-query");
+const manualFoodSuggestionsEl = byId("manual-food-suggestions");
 const manualSearchButtonEl = byId("manual-search-button");
 const toggleSettingsButtonEl = byId("toggle-settings-button");
 const settingsPanelEl = byId("settings-panel");
@@ -147,6 +148,7 @@ let currentDetectedItems = [];
 let currentProviderSource = "Manual";
 let currentConfidence = 0;
 let settingsPanelCollapsed = false;
+let manualSuggestTimer = null;
 let profileSettings = {
   sex: "female",
   heightCm: 165,
@@ -582,6 +584,7 @@ function clearCurrentAnalysis() {
   fileInputEl.value = "";
   dashboardPhotoInputEl.value = "";
   manualFoodQueryEl.value = "";
+  renderManualFoodSuggestions([]);
   updateAnalyzeButtonState();
 }
 
@@ -859,9 +862,33 @@ async function addManualItemFromSearch() {
   item.estimate = estimate;
   currentDetectedItems.push(item);
   manualFoodQueryEl.value = "";
+  renderManualFoodSuggestions([]);
   renderDetectedItemsEditor();
   syncCurrentAnalysisFromItems("Manual search");
   setMessage(`Страву «${estimate.foodName || query}» додано з бази.`);
+}
+
+function renderManualFoodSuggestions(suggestions = []) {
+  manualFoodSuggestionsEl.innerHTML = "";
+  suggestions.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    manualFoodSuggestionsEl.appendChild(option);
+  });
+}
+
+async function fetchManualFoodSuggestions(query) {
+  const q = String(query || "").trim();
+  if (q.length < 2) {
+    renderManualFoodSuggestions([]);
+    return;
+  }
+  try {
+    const data = await api(`/api/food/search?q=${encodeURIComponent(q)}&limit=8`);
+    renderManualFoodSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+  } catch {
+    renderManualFoodSuggestions([]);
+  }
 }
 
 async function recalculateDetectedItems() {
@@ -1271,10 +1298,21 @@ function wireEvents() {
   manualSearchButtonEl.addEventListener("click", () => {
     addManualItemFromSearch().catch((error) => setMessage(error.message, true));
   });
+  manualFoodQueryEl.addEventListener("input", () => {
+    if (manualSuggestTimer) clearTimeout(manualSuggestTimer);
+    manualSuggestTimer = setTimeout(() => {
+      fetchManualFoodSuggestions(manualFoodQueryEl.value).catch(() => {});
+    }, 220);
+  });
   manualFoodQueryEl.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     addManualItemFromSearch().catch((error) => setMessage(error.message, true));
+  });
+  manualFoodQueryEl.addEventListener("focus", () => {
+    if (manualFoodQueryEl.value.trim().length >= 2) {
+      fetchManualFoodSuggestions(manualFoodQueryEl.value).catch(() => {});
+    }
   });
   recalculateItemsButtonEl.addEventListener("click", () => {
     recalculateDetectedItems()

@@ -218,7 +218,13 @@
               <p class="status">Можна змінити назву/грамовку, прибрати зайві або додати нову позицію.</p>
               <div id="detected-items-list" class="detected-items-list"></div>
               <div class="controls">
-                <input id="manual-food-query" type="text" placeholder="Знайти страву в базі (наприклад, гречка з куркою)" />
+                <input
+                  id="manual-food-query"
+                  type="text"
+                  list="manual-food-suggestions"
+                  placeholder="Знайти страву в базі (наприклад, гречка з куркою)"
+                />
+                <datalist id="manual-food-suggestions"></datalist>
                 <button id="manual-search-button" class="btn outline-accent motion-cta" type="button">Знайти і додати</button>
                 <button id="add-item-button" class="btn outline-accent motion-cta" type="button">Додати страву</button>
                 <button id="recalculate-items-button" class="btn outline-accent motion-cta" type="button">Перерахувати обрані</button>
@@ -310,6 +316,6 @@
     <script src="./firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=13"></script>
+    <script type="module" src="./app.js?v=14"></script>
   </body>
 </html>
