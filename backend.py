@@ -89,6 +89,15 @@ DEFAULT_CALORIES_BY_LABEL = {
     "fish": ("Fish", 233, 25, 14, 0),
     "cake": ("Cake", 350, 4, 18, 43),
 }
+ALLOWED_SEX_VALUES = {"male", "female"}
+ALLOWED_GOAL_MODES = {"loss", "maintain", "gain"}
+DEFAULT_USER_PROFILE = {
+    "sex": "female",
+    "heightCm": 165.0,
+    "weightKg": 65.0,
+    "ageYears": 30,
+    "goalMode": "maintain",
+}
 
 
 def db_connect() -> sqlite3.Connection:
@@ -114,6 +123,34 @@ def init_db() -> None:
     cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
     if "firebase_uid" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT")
+    if "sex" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN sex TEXT")
+    if "height_cm" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN height_cm REAL")
+    if "weight_kg" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN weight_kg REAL")
+    if "age_years" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN age_years INTEGER")
+    if "goal_mode" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN goal_mode TEXT")
+    cur.execute(
+        """
+        UPDATE users
+        SET
+            sex = COALESCE(sex, ?),
+            height_cm = COALESCE(height_cm, ?),
+            weight_kg = COALESCE(weight_kg, ?),
+            age_years = COALESCE(age_years, ?),
+            goal_mode = COALESCE(goal_mode, ?)
+        """,
+        (
+            DEFAULT_USER_PROFILE["sex"],
+            DEFAULT_USER_PROFILE["heightCm"],
+            DEFAULT_USER_PROFILE["weightKg"],
+            DEFAULT_USER_PROFILE["ageYears"],
+            DEFAULT_USER_PROFILE["goalMode"],
+        ),
+    )
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid) WHERE firebase_uid IS NOT NULL"
     )
@@ -591,6 +628,64 @@ def parse_float(value: str) -> float:
         return 0.0
 
 
+def clamp_number(value: float, minimum: float, maximum: float) -> float:
+    return min(maximum, max(minimum, value))
+
+
+def normalize_goal_mode(value: str) -> str:
+    candidate = (value or "").strip().lower()
+    return candidate if candidate in ALLOWED_GOAL_MODES else DEFAULT_USER_PROFILE["goalMode"]
+
+
+def normalize_sex(value: str) -> str:
+    candidate = (value or "").strip().lower()
+    return candidate if candidate in ALLOWED_SEX_VALUES else DEFAULT_USER_PROFILE["sex"]
+
+
+def normalize_profile_payload(payload: dict, current: Optional[dict] = None) -> dict:
+    base = dict(DEFAULT_USER_PROFILE)
+    if current:
+        base.update(current)
+    sex = normalize_sex(str(payload.get("sex", base["sex"])))
+    goal_mode = normalize_goal_mode(str(payload.get("goalMode", base["goalMode"])))
+    height_cm = clamp_number(parse_float(payload.get("heightCm", base["heightCm"])), 120.0, 230.0)
+    weight_kg = clamp_number(parse_float(payload.get("weightKg", base["weightKg"])), 35.0, 250.0)
+    age_years = int(clamp_number(parse_float(payload.get("ageYears", base["ageYears"])), 14.0, 100.0))
+    return {
+        "sex": sex,
+        "heightCm": round(height_cm, 1),
+        "weightKg": round(weight_kg, 1),
+        "ageYears": age_years,
+        "goalMode": goal_mode,
+    }
+
+
+def db_row_to_profile(row: Optional[sqlite3.Row]) -> dict:
+    if not row:
+        return dict(DEFAULT_USER_PROFILE)
+    raw = {
+        "sex": row["sex"],
+        "heightCm": row["height_cm"],
+        "weightKg": row["weight_kg"],
+        "ageYears": row["age_years"],
+        "goalMode": row["goal_mode"],
+    }
+    return normalize_profile_payload(raw)
+
+
+def estimate_target_calories(profile: dict) -> float:
+    weight = clamp_number(parse_float(profile.get("weightKg")), 35.0, 250.0)
+    height = clamp_number(parse_float(profile.get("heightCm")), 120.0, 230.0)
+    age = clamp_number(parse_float(profile.get("ageYears")), 14.0, 100.0)
+    sex = normalize_sex(str(profile.get("sex")))
+    goal_mode = normalize_goal_mode(str(profile.get("goalMode")))
+    sex_adjustment = 5.0 if sex == "male" else -161.0
+    bmr = (10.0 * weight) + (6.25 * height) - (5.0 * age) + sex_adjustment
+    maintenance = max(1200.0, bmr * 1.35)
+    adjustment = {"loss": -350.0, "maintain": 0.0, "gain": 300.0}[goal_mode]
+    return round(max(1200.0, maintenance + adjustment), 1)
+
+
 def parse_serving_description(serving_description: str) -> float:
     lower = (serving_description or "").lower()
     if " g" in lower:
@@ -764,12 +859,66 @@ def create_app() -> Flask:
         if not user_id:
             return jsonify({"authenticated": False})
         conn = db_connect()
-        user = conn.execute("SELECT id, email FROM users WHERE id = ?", (user_id,)).fetchone()
+        user = conn.execute("SELECT id, email, sex, height_cm, weight_kg, age_years, goal_mode FROM users WHERE id = ?", (user_id,)).fetchone()
         conn.close()
         if not user:
             session.clear()
             return jsonify({"authenticated": False})
-        return jsonify({"authenticated": True, "user": {"id": int(user["id"]), "email": user["email"]}})
+        profile = db_row_to_profile(user)
+        return jsonify(
+            {
+                "authenticated": True,
+                "user": {"id": int(user["id"]), "email": user["email"]},
+                "profile": profile,
+                "calorieTarget": estimate_target_calories(profile),
+            }
+        )
+
+    @app.get("/api/profile")
+    def get_profile():
+        user_id, auth_error = auth_required()
+        if auth_error:
+            return auth_error
+        conn = db_connect()
+        row = conn.execute(
+            "SELECT sex, height_cm, weight_kg, age_years, goal_mode FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        conn.close()
+        profile = db_row_to_profile(row)
+        return jsonify({"profile": profile, "calorieTarget": estimate_target_calories(profile)})
+
+    @app.put("/api/profile")
+    def update_profile():
+        user_id, auth_error = auth_required()
+        if auth_error:
+            return auth_error
+        payload = request.get_json(silent=True) or {}
+        conn = db_connect()
+        current_row = conn.execute(
+            "SELECT sex, height_cm, weight_kg, age_years, goal_mode FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        current_profile = db_row_to_profile(current_row)
+        profile = normalize_profile_payload(payload, current=current_profile)
+        conn.execute(
+            """
+            UPDATE users
+            SET sex = ?, height_cm = ?, weight_kg = ?, age_years = ?, goal_mode = ?
+            WHERE id = ?
+            """,
+            (
+                profile["sex"],
+                profile["heightCm"],
+                profile["weightKg"],
+                profile["ageYears"],
+                profile["goalMode"],
+                user_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"profile": profile, "calorieTarget": estimate_target_calories(profile)})
 
     @app.get("/api/meta")
     def meta():

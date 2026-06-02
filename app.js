@@ -8,6 +8,7 @@ const FIREBASE_CONFIG = window.MYFITNESSPAL_FIREBASE_CONFIG || null;
 const CALORIE_TARGETS = { loss: 1700, maintain: 2000, gain: 2400 };
 const GUEST_LOG_STORAGE_KEY = "myfitnesspal_guest_entries_v1";
 const LOCAL_AUTH_STORAGE_KEY = "myfitnesspal_local_auth_users_v1";
+const LOCAL_PROFILE_STORAGE_PREFIX = "myfitnesspal_profile_v1_";
 
 const LOCAL_FOOD_DB = [
   { keys: ["banana"], calories: 105, protein: 1.3, fat: 0.4, carbs: 27, name: "Banana" },
@@ -96,6 +97,13 @@ const entryDateEl = byId("entry-date");
 const viewDateEl = byId("view-date");
 const refreshDayEl = byId("refresh-day");
 const goalSelectEl = byId("goal-select");
+const profileSexEl = byId("profile-sex");
+const profileWeightEl = byId("profile-weight");
+const profileHeightEl = byId("profile-height");
+const profileAgeEl = byId("profile-age");
+const detectedItemsListEl = byId("detected-items-list");
+const addItemButtonEl = byId("add-item-button");
+const recalculateItemsButtonEl = byId("recalculate-items-button");
 const installButtonEl = byId("install-button");
 const chipsEl = byId("prediction-chips");
 const guessedFoodEl = byId("guessed-food");
@@ -131,6 +139,16 @@ let forceLandingView = false;
 let localDiaryEntries = [];
 let firebaseAuthApi = null;
 let firebaseAuth = null;
+let currentDetectedItems = [];
+let currentProviderSource = "Manual";
+let currentConfidence = 0;
+let profileSettings = {
+  sex: "female",
+  heightCm: 165,
+  weightKg: 65,
+  ageYears: 30,
+  goalMode: "maintain"
+};
 
 function round(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -208,6 +226,105 @@ function readLocalAuthUsers() {
 
 function writeLocalAuthUsers(users) {
   localStorage.setItem(LOCAL_AUTH_STORAGE_KEY, JSON.stringify(users));
+}
+
+function getLocalProfileKey() {
+  if (isGuestMode()) return `${LOCAL_PROFILE_STORAGE_PREFIX}guest`;
+  if (isAuthenticatedMode() && !isServerUser()) return `${LOCAL_PROFILE_STORAGE_PREFIX}${currentUser.email}`;
+  return `${LOCAL_PROFILE_STORAGE_PREFIX}guest`;
+}
+
+function normalizeProfile(partial = {}) {
+  const sex = String(partial.sex || profileSettings.sex || "female").toLowerCase() === "male" ? "male" : "female";
+  const goalMode = ["loss", "maintain", "gain"].includes(String(partial.goalMode)) ? String(partial.goalMode) : "maintain";
+  const heightCm = Math.min(230, Math.max(120, Number(partial.heightCm || 165)));
+  const weightKg = Math.min(250, Math.max(35, Number(partial.weightKg || 65)));
+  const ageYears = Math.min(100, Math.max(14, Number(partial.ageYears || 30)));
+  return {
+    sex,
+    heightCm: round(heightCm),
+    weightKg: round(weightKg),
+    ageYears: Math.round(ageYears),
+    goalMode
+  };
+}
+
+function applyProfileToForm() {
+  profileSexEl.value = profileSettings.sex;
+  profileWeightEl.value = String(profileSettings.weightKg);
+  profileHeightEl.value = String(profileSettings.heightCm);
+  profileAgeEl.value = String(profileSettings.ageYears);
+  goalSelectEl.value = profileSettings.goalMode;
+}
+
+function readLocalProfile() {
+  try {
+    const raw = localStorage.getItem(getLocalProfileKey());
+    if (!raw) return normalizeProfile();
+    return normalizeProfile(JSON.parse(raw));
+  } catch {
+    return normalizeProfile();
+  }
+}
+
+function writeLocalProfile() {
+  localStorage.setItem(getLocalProfileKey(), JSON.stringify(profileSettings));
+}
+
+function readProfileFromForm() {
+  return normalizeProfile({
+    sex: profileSexEl.value,
+    weightKg: profileWeightEl.value,
+    heightCm: profileHeightEl.value,
+    ageYears: profileAgeEl.value,
+    goalMode: goalSelectEl.value
+  });
+}
+
+async function saveProfileSettings() {
+  profileSettings = readProfileFromForm();
+  if (isServerUser()) {
+    try {
+      const payload = {
+        sex: profileSettings.sex,
+        heightCm: profileSettings.heightCm,
+        weightKg: profileSettings.weightKg,
+        ageYears: profileSettings.ageYears,
+        goalMode: profileSettings.goalMode
+      };
+      const data = await api("/api/profile", { method: "PUT", body: JSON.stringify(payload) });
+      profileSettings = normalizeProfile(data.profile || profileSettings);
+    } catch (error) {
+      setMessage(`Не вдалося зберегти профіль: ${error.message}`, true);
+    }
+  } else if (canUseDashboard()) {
+    writeLocalProfile();
+  }
+  applyProfileToForm();
+  renderTotals();
+}
+
+async function loadProfileSettings(authMePayload = null) {
+  if (isServerUser()) {
+    if (authMePayload?.profile) {
+      profileSettings = normalizeProfile(authMePayload.profile);
+    } else {
+      try {
+        const data = await api("/api/profile");
+        profileSettings = normalizeProfile(data.profile || {});
+      } catch {
+        profileSettings = normalizeProfile();
+      }
+    }
+    applyProfileToForm();
+    return;
+  }
+  if (canUseDashboard()) {
+    profileSettings = readLocalProfile();
+  } else {
+    profileSettings = normalizeProfile();
+  }
+  applyProfileToForm();
 }
 
 function renderView() {
@@ -435,7 +552,11 @@ function setNutritionResult(result = null) {
 function clearCurrentAnalysis() {
   currentImageData = "";
   currentAnalysis = null;
+  currentDetectedItems = [];
+  currentProviderSource = "Manual";
+  currentConfidence = 0;
   chipsEl.innerHTML = "";
+  renderDetectedItemsEditor();
   setNutritionResult(null);
   saveEntryButtonEl.disabled = true;
   imagePreviewEl.hidden = true;
@@ -454,8 +575,16 @@ function calcTotals(entries) {
   };
 }
 
+function estimateTargetCalories(profile) {
+  const sexAdjustment = profile.sex === "male" ? 5 : -161;
+  const bmr = (10 * profile.weightKg) + (6.25 * profile.heightCm) - (5 * profile.ageYears) + sexAdjustment;
+  const maintenance = Math.max(1200, bmr * 1.35);
+  const adjustment = profile.goalMode === "loss" ? -350 : profile.goalMode === "gain" ? 300 : 0;
+  return round(Math.max(1200, maintenance + adjustment));
+}
+
 function renderTotals() {
-  const target = CALORIE_TARGETS[goalSelectEl.value] || CALORIE_TARGETS.maintain;
+  const target = estimateTargetCalories(profileSettings) || CALORIE_TARGETS[profileSettings.goalMode] || CALORIE_TARGETS.maintain;
   const calories = round(currentDayTotals.calories);
   const percent = target ? Math.min(200, round((calories / target) * 100)) : 0;
   const gaugePercent = Math.min(100, Math.max(0, percent));
@@ -598,6 +727,114 @@ function localEstimate(query, grams) {
   };
 }
 
+function makeDetectedItem(label = "", grams = 150) {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label: String(label || "").trim() || "unknown food",
+    grams: Math.max(1, Number(grams || 150)),
+    selected: true,
+    estimate: null
+  };
+}
+
+function escapeHtmlAttr(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
+function buildCombinedAnalysis(items, sourceProvider, confidence) {
+  const selected = items.filter((item) => item.selected && item.estimate);
+  if (!selected.length) return null;
+  const summary = {
+    foodName: selected.map((item) => item.estimate.foodName || item.label).join(" + "),
+    grams: round(selected.reduce((sum, item) => sum + Number(item.estimate.grams || item.grams || 0), 0)),
+    calories: round(selected.reduce((sum, item) => sum + Number(item.estimate.calories || 0), 0)),
+    protein: round(selected.reduce((sum, item) => sum + Number(item.estimate.protein || 0), 0)),
+    fat: round(selected.reduce((sum, item) => sum + Number(item.estimate.fat || 0), 0)),
+    carbs: round(selected.reduce((sum, item) => sum + Number(item.estimate.carbs || 0), 0)),
+    source: `Combined (${selected.length}) / ${sourceProvider}`,
+    confidence
+  };
+  return summary;
+}
+
+function renderDetectedItemsEditor() {
+  detectedItemsListEl.innerHTML = "";
+  if (!currentDetectedItems.length) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "status";
+    placeholder.textContent = "Після аналізу тут з’явиться список страв.";
+    detectedItemsListEl.appendChild(placeholder);
+    return;
+  }
+  currentDetectedItems.forEach((item, index) => {
+    const row = document.createElement("div");
+    row.className = "detected-item-row";
+    row.dataset.id = item.id;
+    const kcal = item.estimate ? `${round(item.estimate.calories)} ккал` : "— ккал";
+    row.innerHTML = `
+      <label class="item-check">
+        <input type="checkbox" data-action="toggle" ${item.selected ? "checked" : ""} />
+      </label>
+      <input data-action="label" type="text" value="${escapeHtmlAttr(item.label)}" placeholder="Назва страви" />
+      <input data-action="grams" type="number" min="1" max="2000" value="${Math.round(item.grams)}" />
+      <strong class="item-kcal">${kcal}</strong>
+      <button class="btn ghost item-remove" data-action="remove" type="button">×</button>
+    `;
+    const meta = document.createElement("small");
+    meta.className = "status";
+    meta.textContent = item.estimate
+      ? `${round(item.estimate.protein)} / ${round(item.estimate.fat)} / ${round(item.estimate.carbs)} г Б/Ж/В`
+      : `Позиція ${index + 1}: натисніть «Перерахувати обрані»`;
+    row.appendChild(meta);
+    detectedItemsListEl.appendChild(row);
+  });
+}
+
+async function estimateItem(query, grams) {
+  try {
+    return await api("/api/food/estimate", {
+      method: "POST",
+      body: JSON.stringify({ query, grams })
+    });
+  } catch {
+    return localEstimate(query, grams);
+  }
+}
+
+async function recalculateDetectedItems() {
+  if (!currentDetectedItems.length) return;
+  const updatedItems = [];
+  for (const item of currentDetectedItems) {
+    const normalizedLabel = String(item.label || "").trim() || "unknown food";
+    const grams = Math.max(1, Number(item.grams || 1));
+    if (!item.selected) {
+      updatedItems.push({ ...item, label: normalizedLabel, grams, estimate: item.estimate || null });
+      continue;
+    }
+    const estimate = await estimateItem(normalizedLabel, grams);
+    updatedItems.push({
+      ...item,
+      label: normalizedLabel,
+      grams,
+      estimate
+    });
+  }
+  currentDetectedItems = updatedItems;
+  renderDetectedItemsEditor();
+}
+
+function syncCurrentAnalysisFromItems(provider = currentProviderSource, confidence = currentConfidence) {
+  currentProviderSource = provider || "Manual";
+  currentConfidence = Number(confidence || 0);
+  currentAnalysis = buildCombinedAnalysis(currentDetectedItems, currentProviderSource, currentConfidence);
+  setNutritionResult(currentAnalysis);
+  saveEntryButtonEl.disabled = !currentAnalysis;
+}
+
 async function analyzeImage() {
   if (!currentImageData) return;
   if (!canUseDashboard()) enterGuestMode();
@@ -632,36 +869,34 @@ async function analyzeImage() {
     } catch {}
 
     renderPredictionChips(labels);
-    const grams = Math.max(1, Number(recognizedGrams || gramsInputEl.value || 250));
+    currentProviderSource = provider;
+    currentConfidence = predictions[0]?.probability || 0;
+    const baseGrams = Math.max(1, Number(recognizedGrams || gramsInputEl.value || 250));
     if (recognizedGrams) {
-      gramsInputEl.value = String(Math.round(grams));
+      gramsInputEl.value = String(Math.round(baseGrams));
     }
-    let estimate = null;
-    try {
-      estimate = await api("/api/food/estimate", {
-        method: "POST",
-        body: JSON.stringify({ query: labels[0], grams })
-      });
-    } catch {
-      estimate = localEstimate(labels[0], grams);
+    const topLabels = labels.slice(0, 4);
+    const splitGrams = Math.max(1, Math.round(baseGrams / Math.max(1, topLabels.length)));
+    currentDetectedItems = topLabels.map((label, index) => {
+      const itemGrams = recognizedGrams && topLabels.length > 1 ? splitGrams : baseGrams;
+      const item = makeDetectedItem(label, itemGrams);
+      item.selected = index < 2 || topLabels.length === 1;
+      return item;
+    });
+    if (!currentDetectedItems.length) {
+      currentDetectedItems = [makeDetectedItem(fallbackLabel, baseGrams)];
     }
-
-    currentAnalysis = {
-      foodName: estimate.foodName,
-      grams: estimate.grams,
-      calories: estimate.calories,
-      protein: estimate.protein,
-      fat: estimate.fat,
-      carbs: estimate.carbs,
-      source: `${estimate.source} / ${provider}`,
-      confidence: predictions[0]?.probability || 0
-    };
-    setNutritionResult(currentAnalysis);
-    saveEntryButtonEl.disabled = false;
+    renderDetectedItemsEditor();
+    await recalculateDetectedItems();
+    syncCurrentAnalysisFromItems();
     const debugNote = providerDiagnostics ? ` Причина fallback: ${providerDiagnostics}.` : "";
-    setMessage(`Процес завершено. Натисніть «Додати у щоденник».${debugNote}`);
+    setMessage(
+      `Процес завершено. Оберіть потрібні позиції, за потреби відредагуйте, потім натисніть «Додати у щоденник».${debugNote}`
+    );
   } catch (error) {
     currentAnalysis = null;
+    currentDetectedItems = [];
+    renderDetectedItemsEditor();
     setNutritionResult(null);
     setMessage(error.message || "Помилка аналізу", true);
   } finally {
@@ -672,25 +907,47 @@ async function analyzeImage() {
 }
 
 async function saveEntry() {
-  if (!currentAnalysis || !canUseDashboard()) return;
+  if (!canUseDashboard()) return;
+  const selectedItems = currentDetectedItems.filter((item) => item.selected && item.estimate);
+  if (!selectedItems.length && !currentAnalysis) return;
   const dateKey = activeDateKey();
+  const entriesToSave = selectedItems.length
+    ? selectedItems.map((item) => ({
+        foodName: item.estimate.foodName || item.label,
+        grams: item.estimate.grams || item.grams,
+        calories: item.estimate.calories,
+        protein: item.estimate.protein,
+        fat: item.estimate.fat,
+        carbs: item.estimate.carbs,
+        source: `${item.estimate.source} / ${currentProviderSource}`,
+        confidence: currentConfidence
+      }))
+    : [{ ...currentAnalysis }];
   if (isServerUser()) {
-    await api("/api/diary/entries", {
-      method: "POST",
-      body: JSON.stringify({ ...currentAnalysis, dateKey })
-    });
+    for (const entry of entriesToSave) {
+      await api("/api/diary/entries", {
+        method: "POST",
+        body: JSON.stringify({ ...entry, dateKey })
+      });
+    }
   } else {
-    localDiaryEntries.unshift({
-      ...currentAnalysis,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      dateKey,
-      createdAt: new Date().toISOString()
-    });
+    entriesToSave
+      .slice()
+      .reverse()
+      .forEach((entry) => {
+        localDiaryEntries.unshift({
+          ...entry,
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          dateKey,
+          createdAt: new Date().toISOString()
+        });
+      });
     writeLocalDiary();
   }
   saveEntryButtonEl.disabled = true;
   await loadDayDiary(activeDateKey());
   await loadHistory(30);
+  setMessage(`Додано записів: ${entriesToSave.length}.`);
 }
 
 async function deleteEntry(entryId) {
@@ -738,6 +995,7 @@ async function submitRegister(event) {
   landingScreen = "home";
   forceLandingView = false;
   localDiaryEntries = readLocalDiary();
+  await loadProfileSettings();
   registerFormEl.reset();
   renderView();
   await loadDayDiary(activeDateKey());
@@ -765,6 +1023,7 @@ async function submitLogin(event) {
   landingScreen = "home";
   forceLandingView = false;
   localDiaryEntries = readLocalDiary();
+  await loadProfileSettings();
   loginFormEl.reset();
   renderView();
   await loadDayDiary(activeDateKey());
@@ -778,6 +1037,7 @@ function enterGuestMode() {
   landingScreen = "home";
   forceLandingView = false;
   localDiaryEntries = readLocalDiary();
+  loadProfileSettings().catch(() => {});
   renderView();
   loadDayDiary(activeDateKey()).catch((error) => setMessage(error.message, true));
   loadHistory(30).catch((error) => setMessage(error.message, true));
@@ -795,6 +1055,8 @@ async function logout() {
   forceLandingView = false;
   currentDayEntries = [];
   currentDayTotals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+  profileSettings = normalizeProfile();
+  applyProfileToForm();
   renderView();
   renderDiary([]);
   renderHistory([], 0);
@@ -824,6 +1086,7 @@ function registerServiceWorker() {
 }
 
 async function checkAuth() {
+  let authPayload = null;
   if (firebaseAuth && firebaseAuthApi) {
     const firebaseUser = await new Promise((resolve) => {
       const unsub = firebaseAuthApi.onAuthStateChanged(firebaseAuth, (user) => {
@@ -845,6 +1108,7 @@ async function checkAuth() {
   } else {
     try {
       const data = await api("/api/auth/me");
+      authPayload = data;
       currentUser = data.authenticated ? data.user : null;
       sessionMode = currentUser ? "user" : "anonymous";
     } catch {
@@ -856,6 +1120,7 @@ async function checkAuth() {
   landingScreen = "home";
   forceLandingView = false;
   localDiaryEntries = canUseDashboard() ? readLocalDiary() : [];
+  await loadProfileSettings(authPayload);
   renderView();
   if (canUseDashboard()) {
     await loadDayDiary(activeDateKey());
@@ -920,7 +1185,67 @@ function wireEvents() {
     viewDateEl.value = activeDateKey();
     loadDayDiary(activeDateKey()).catch((error) => setMessage(error.message, true));
   });
-  goalSelectEl.addEventListener("change", renderTotals);
+  const onProfileInput = () => {
+    profileSettings = readProfileFromForm();
+    renderTotals();
+  };
+  const onProfileChange = () => {
+    saveProfileSettings().catch((error) => setMessage(error.message, true));
+  };
+  goalSelectEl.addEventListener("input", onProfileInput);
+  goalSelectEl.addEventListener("change", onProfileChange);
+  profileSexEl.addEventListener("change", onProfileChange);
+  profileWeightEl.addEventListener("input", onProfileInput);
+  profileWeightEl.addEventListener("change", onProfileChange);
+  profileHeightEl.addEventListener("input", onProfileInput);
+  profileHeightEl.addEventListener("change", onProfileChange);
+  profileAgeEl.addEventListener("input", onProfileInput);
+  profileAgeEl.addEventListener("change", onProfileChange);
+
+  addItemButtonEl.addEventListener("click", () => {
+    currentDetectedItems.push(makeDetectedItem("manual food", Number(gramsInputEl.value || 150)));
+    renderDetectedItemsEditor();
+    syncCurrentAnalysisFromItems("Manual edit");
+  });
+  recalculateItemsButtonEl.addEventListener("click", () => {
+    recalculateDetectedItems()
+      .then(() => {
+        syncCurrentAnalysisFromItems();
+        setMessage("Позиції перераховано. Можна додавати в щоденник.");
+      })
+      .catch((error) => setMessage(error.message, true));
+  });
+  detectedItemsListEl.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const rowEl = target.closest(".detected-item-row");
+    if (!rowEl) return;
+    const item = currentDetectedItems.find((entry) => entry.id === rowEl.dataset.id);
+    if (!item) return;
+    const action = target.dataset.action;
+    if (action === "toggle" && target instanceof HTMLInputElement) {
+      item.selected = target.checked;
+    }
+    if (action === "label" && target instanceof HTMLInputElement) {
+      item.label = String(target.value || "").trim() || "unknown food";
+      item.estimate = null;
+    }
+    if (action === "grams" && target instanceof HTMLInputElement) {
+      item.grams = Math.max(1, Number(target.value || item.grams || 1));
+      item.estimate = null;
+    }
+    renderDetectedItemsEditor();
+    syncCurrentAnalysisFromItems();
+  });
+  detectedItemsListEl.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || target.dataset.action !== "remove") return;
+    const rowEl = target.closest(".detected-item-row");
+    if (!rowEl) return;
+    currentDetectedItems = currentDetectedItems.filter((item) => item.id !== rowEl.dataset.id);
+    renderDetectedItemsEditor();
+    syncCurrentAnalysisFromItems();
+  });
 
   diaryListEl.addEventListener("click", (event) => {
     const target = event.target;
@@ -934,6 +1259,8 @@ async function init() {
   const today = todayKey();
   entryDateEl.value = today;
   viewDateEl.value = today;
+  renderDetectedItemsEditor();
+  applyProfileToForm();
   setNutritionResult(null);
   renderTotals();
   wireEvents();
