@@ -67,6 +67,11 @@ try:
     HUGGINGFACE_DNS_AVAILABLE = True
 except OSError:
     HUGGINGFACE_DNS_AVAILABLE = False
+try:
+    socket.gethostbyname("api-inference.huggingface.co")
+    HUGGINGFACE_LEGACY_DNS_AVAILABLE = True
+except OSError:
+    HUGGINGFACE_LEGACY_DNS_AVAILABLE = False
 CLARIFAI_PAT = os.getenv("CLARIFAI_PAT", "").strip()
 CLARIFAI_USER_ID = os.getenv("CLARIFAI_USER_ID", "clarifai").strip()
 CLARIFAI_APP_ID = os.getenv("CLARIFAI_APP_ID", "main").strip()
@@ -378,37 +383,45 @@ def choose_best_fallback_candidate(candidates: list[str], default_label: str) ->
 
 
 def fetch_huggingface_food_labels(image_bytes: bytes) -> tuple[list[str], Optional[str]]:
-    if not HUGGINGFACE_DNS_AVAILABLE:
-        return [], "HuggingFace router host is unreachable in current network"
+    if not HUGGINGFACE_DNS_AVAILABLE and not HUGGINGFACE_LEGACY_DNS_AVAILABLE:
+        return [], "HuggingFace hosts are unreachable in current network"
     if not HUGGINGFACE_FOOD_MODELS:
         return [], None
-    if not HUGGINGFACE_API_TOKEN:
-        return [], "HuggingFace token is not configured (set HUGGINGFACE_API_TOKEN or HUGGINGFACE_TOKEN)"
+    endpoints = []
+    if HUGGINGFACE_DNS_AVAILABLE:
+        endpoints.append("https://router.huggingface.co/hf-inference/models/{model_name}")
+    if HUGGINGFACE_LEGACY_DNS_AVAILABLE:
+        endpoints.append("https://api-inference.huggingface.co/models/{model_name}")
     headers = {"Content-Type": "application/octet-stream"}
-    headers["Authorization"] = f"Bearer {HUGGINGFACE_API_TOKEN}"
+    if HUGGINGFACE_API_TOKEN:
+        headers["Authorization"] = f"Bearer {HUGGINGFACE_API_TOKEN}"
 
     last_error = None
     for model_name in HUGGINGFACE_FOOD_MODELS:
-        endpoint = f"https://router.huggingface.co/hf-inference/models/{model_name}"
-        try:
-            response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=20)
-            if response.status_code == 503:
-                response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=30)
-            if response.status_code >= 400:
-                last_error = f"HuggingFace HTTP {response.status_code}: {response_error_text(response)}"
-                continue
-            payload = response.json()
-            if isinstance(payload, dict) and payload.get("error"):
-                last_error = f"HuggingFace error: {payload.get('error')}"
-                continue
-            if not isinstance(payload, list):
-                last_error = "HuggingFace returned unexpected payload"
-                continue
-            labels = unique_labels([item.get("label", "") for item in payload if isinstance(item, dict)])
-            if labels:
-                return labels, None
-        except requests.RequestException as exc:
-            last_error = f"HuggingFace failed ({exc.__class__.__name__})"
+        for endpoint_template in endpoints:
+            endpoint = endpoint_template.format(model_name=model_name)
+            try:
+                response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=20)
+                if response.status_code == 503:
+                    response = requests.post(endpoint, headers=headers, data=image_bytes, timeout=30)
+                if response.status_code == 401 and not HUGGINGFACE_API_TOKEN:
+                    last_error = "HuggingFace token is required for this endpoint"
+                    continue
+                if response.status_code >= 400:
+                    last_error = f"HuggingFace HTTP {response.status_code}: {response_error_text(response)}"
+                    continue
+                payload = response.json()
+                if isinstance(payload, dict) and payload.get("error"):
+                    last_error = f"HuggingFace error: {payload.get('error')}"
+                    continue
+                if not isinstance(payload, list):
+                    last_error = "HuggingFace returned unexpected payload"
+                    continue
+                labels = unique_labels([item.get("label", "") for item in payload if isinstance(item, dict)])
+                if labels:
+                    return labels, None
+            except requests.RequestException as exc:
+                last_error = f"HuggingFace failed ({exc.__class__.__name__})"
     return [], last_error
 
 
@@ -463,9 +476,9 @@ def fetch_openai_food_insights(image_bytes: bytes) -> tuple[list[str], Optional[
         return [], None, f"OpenAI Vision failed ({exc.__class__.__name__})"
 
 
-def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
+def fetch_clarifai_labels(image_bytes: bytes) -> tuple[list[str], Optional[str]]:
     if not CLARIFAI_PAT:
-        return []
+        return [], None
     try:
         payload = {
             "user_app_id": {"user_id": CLARIFAI_USER_ID, "app_id": CLARIFAI_APP_ID},
@@ -480,14 +493,18 @@ def fetch_clarifai_labels(image_bytes: bytes) -> list[str]:
             json=payload,
             timeout=10,
         )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            return [], f"Clarifai HTTP {response.status_code}: {response_error_text(response)}"
         outputs = response.json().get("outputs", [])
         if not outputs:
-            return []
+            return [], "Clarifai returned no outputs"
         concepts = outputs[0].get("data", {}).get("concepts", [])
-        return unique_labels([concept.get("name", "") for concept in concepts[:5]])
-    except requests.RequestException:
-        return []
+        labels = unique_labels([concept.get("name", "") for concept in concepts[:5]])
+        if labels:
+            return labels, None
+        return [], "Clarifai returned empty labels"
+    except requests.RequestException as exc:
+        return [], f"Clarifai failed ({exc.__class__.__name__})"
 
 
 def fetch_openfoodfacts_food(query: str) -> Optional[FoodResult]:
@@ -932,6 +949,7 @@ def create_app() -> Flask:
                 "recognitionProviders": {
                     "huggingFaceConfigured": True,
                     "huggingFaceDnsResolved": HUGGINGFACE_DNS_AVAILABLE,
+                    "huggingFaceLegacyDnsResolved": HUGGINGFACE_LEGACY_DNS_AVAILABLE,
                     "huggingFaceTokenConfigured": bool(HUGGINGFACE_API_TOKEN),
                     "openAIVisionConfigured": bool(OPENAI_API_KEY),
                     "clarifaiConfigured": bool(CLARIFAI_PAT),
@@ -988,6 +1006,9 @@ def create_app() -> Flask:
         provider = "MobileNet fallback"
         diagnostics = ""
         estimated_grams = None
+        hf_error = None
+        openai_error = None
+        clarifai_error = None
 
         image_bytes = extract_image_bytes(image_data)
         if image_bytes:
@@ -1000,12 +1021,13 @@ def create_app() -> Flask:
                 if labels:
                     provider = "OpenAI Vision"
                 else:
-                    labels = fetch_clarifai_labels(image_bytes)
+                    labels, clarifai_error = fetch_clarifai_labels(image_bytes)
                     if labels:
                         provider = "Clarifai food model"
                         estimated_grams = estimate_portion_grams(labels[0])
                     else:
-                        diagnostics = openai_error or hf_error or ""
+                        all_errors = [hf_error, openai_error, clarifai_error]
+                        diagnostics = " | ".join([err for err in all_errors if err]) or ""
 
         if not labels and fallback_label:
             selected_fallback = choose_best_fallback_candidate(fallback_candidates, fallback_label)

@@ -213,58 +213,65 @@
             <h2>Редагувати розпізнавання:</h2>
             <p id="accountEmail" class="status">—</p>
             <p id="sessionModeBadge" class="status">Не авторизовано</p>
+            <div class="controls">
+              <button id="toggle-settings-button" class="btn ghost motion-cta" type="button">Сховати налаштування</button>
+            </div>
             <div class="detected-editor">
               <h3>Страви на фото</h3>
               <p class="status">Можна змінити назву/грамовку, прибрати зайві або додати нову позицію.</p>
               <div id="detected-items-list" class="detected-items-list"></div>
               <div class="controls">
+                <input id="manual-food-query" type="text" placeholder="Знайти страву в базі (наприклад, гречка з куркою)" />
+                <button id="manual-search-button" class="btn outline-accent motion-cta" type="button">Знайти і додати</button>
                 <button id="add-item-button" class="btn outline-accent motion-cta" type="button">Додати страву</button>
                 <button id="recalculate-items-button" class="btn outline-accent motion-cta" type="button">Перерахувати обрані</button>
               </div>
             </div>
-            <div class="profile-editor">
-              <h3>Персональна ціль калорій</h3>
-              <p class="status">Вкажіть параметри тіла та режим: підтримка, схуднення або набір.</p>
-              <div class="controls profile-grid">
-                <label>
-                  Стать:
-                  <select id="profile-sex">
-                    <option value="female" selected>Жінка</option>
-                    <option value="male">Чоловік</option>
-                  </select>
-                </label>
-                <label>
-                  Вага (кг):
-                  <input id="profile-weight" type="number" min="35" max="250" step="0.1" value="65" />
-                </label>
-                <label>
-                  Зріст (см):
-                  <input id="profile-height" type="number" min="120" max="230" step="0.1" value="165" />
-                </label>
-                <label>
-                  Вік:
-                  <input id="profile-age" type="number" min="14" max="100" step="1" value="30" />
-                </label>
-                <label>
-                  Режим:
-                  <select id="goal-select">
-                    <option value="loss">Схуднення</option>
-                    <option value="maintain" selected>Підтримка ваги</option>
-                    <option value="gain">Набір маси</option>
-                  </select>
-                </label>
+            <div id="settings-panel">
+              <div class="profile-editor">
+                <h3>Персональна ціль калорій</h3>
+                <p class="status">Вкажіть параметри тіла та режим: підтримка, схуднення або набір.</p>
+                <div class="controls profile-grid">
+                  <label>
+                    Стать:
+                    <select id="profile-sex">
+                      <option value="female" selected>Жінка</option>
+                      <option value="male">Чоловік</option>
+                    </select>
+                  </label>
+                  <label>
+                    Вага (кг):
+                    <input id="profile-weight" type="number" min="35" max="250" step="0.1" value="65" />
+                  </label>
+                  <label>
+                    Зріст (см):
+                    <input id="profile-height" type="number" min="120" max="230" step="0.1" value="165" />
+                  </label>
+                  <label>
+                    Вік:
+                    <input id="profile-age" type="number" min="14" max="100" step="1" value="30" />
+                  </label>
+                  <label>
+                    Режим:
+                    <select id="goal-select">
+                      <option value="loss">Схуднення</option>
+                      <option value="maintain" selected>Підтримка ваги</option>
+                      <option value="gain">Набір маси</option>
+                    </select>
+                  </label>
+                </div>
               </div>
-            </div>
-            <div class="controls column">
-              <label>
-                Порція (грами):
-                <input id="grams-input" type="number" min="1" max="2000" value="250" />
-              </label>
-              <label>
-                Дата запису:
-                <input id="entry-date" type="date" />
-              </label>
-              <input id="view-date" type="hidden" />
+              <div class="controls column">
+                <label>
+                  Порція (грами):
+                  <input id="grams-input" type="number" min="1" max="2000" value="250" />
+                </label>
+                <label>
+                  Дата запису:
+                  <input id="entry-date" type="date" />
+                </label>
+                <input id="view-date" type="hidden" />
+              </div>
             </div>
             <div class="controls">
               <button id="save-entry" class="btn accent motion-cta" disabled type="button">Додати у щоденник</button>
@@ -295,6 +302,6 @@
     <script src="./firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
-    <script type="module" src="./app.js?v=11"></script>
+    <script type="module" src="./app.js?v=12"></script>
   </body>
 </html>

@@ -104,6 +104,10 @@ const profileAgeEl = byId("profile-age");
 const detectedItemsListEl = byId("detected-items-list");
 const addItemButtonEl = byId("add-item-button");
 const recalculateItemsButtonEl = byId("recalculate-items-button");
+const manualFoodQueryEl = byId("manual-food-query");
+const manualSearchButtonEl = byId("manual-search-button");
+const toggleSettingsButtonEl = byId("toggle-settings-button");
+const settingsPanelEl = byId("settings-panel");
 const installButtonEl = byId("install-button");
 const chipsEl = byId("prediction-chips");
 const guessedFoodEl = byId("guessed-food");
@@ -142,6 +146,7 @@ let firebaseAuth = null;
 let currentDetectedItems = [];
 let currentProviderSource = "Manual";
 let currentConfidence = 0;
+let settingsPanelCollapsed = false;
 let profileSettings = {
   sex: "female",
   heightCm: 165,
@@ -325,6 +330,16 @@ async function loadProfileSettings(authMePayload = null) {
     profileSettings = normalizeProfile();
   }
   applyProfileToForm();
+}
+
+function renderSettingsPanelState() {
+  settingsPanelEl.classList.toggle("hidden", settingsPanelCollapsed);
+  toggleSettingsButtonEl.textContent = settingsPanelCollapsed ? "Показати налаштування" : "Сховати налаштування";
+}
+
+function toggleSettingsPanel() {
+  settingsPanelCollapsed = !settingsPanelCollapsed;
+  renderSettingsPanelState();
 }
 
 function renderView() {
@@ -563,6 +578,7 @@ function clearCurrentAnalysis() {
   imagePreviewEl.removeAttribute("src");
   fileInputEl.value = "";
   dashboardPhotoInputEl.value = "";
+  manualFoodQueryEl.value = "";
   updateAnalyzeButtonState();
 }
 
@@ -782,13 +798,14 @@ function renderDetectedItemsEditor() {
       <input data-action="label" type="text" value="${escapeHtmlAttr(item.label)}" placeholder="Назва страви" />
       <input data-action="grams" type="number" min="1" max="2000" value="${Math.round(item.grams)}" />
       <strong class="item-kcal">${kcal}</strong>
+      <button class="btn outline-accent item-find" data-action="find" type="button">Знайти</button>
       <button class="btn ghost item-remove" data-action="remove" type="button">×</button>
     `;
     const meta = document.createElement("small");
     meta.className = "status";
     meta.textContent = item.estimate
       ? `${round(item.estimate.protein)} / ${round(item.estimate.fat)} / ${round(item.estimate.carbs)} г Б/Ж/В`
-      : `Позиція ${index + 1}: натисніть «Перерахувати обрані»`;
+      : `Позиція ${index + 1}: змініть назву або натисніть «Знайти», щоб перерахувати з бази`;
     row.appendChild(meta);
     detectedItemsListEl.appendChild(row);
   });
@@ -803,6 +820,35 @@ async function estimateItem(query, grams) {
   } catch {
     return localEstimate(query, grams);
   }
+}
+
+async function recalculateSingleItem(itemId) {
+  const targetItem = currentDetectedItems.find((item) => item.id === itemId);
+  if (!targetItem) {
+    return;
+  }
+  const normalizedLabel = String(targetItem.label || "").trim() || "unknown food";
+  const grams = Math.max(1, Number(targetItem.grams || 1));
+  targetItem.label = normalizedLabel;
+  targetItem.grams = grams;
+  targetItem.estimate = await estimateItem(normalizedLabel, grams);
+}
+
+async function addManualItemFromSearch() {
+  const query = String(manualFoodQueryEl.value || "").trim();
+  if (!query) {
+    setMessage("Вкажіть назву страви для пошуку в базі.", true);
+    return;
+  }
+  const grams = Math.max(1, Number(gramsInputEl.value || 100));
+  const estimate = await estimateItem(query, grams);
+  const item = makeDetectedItem(query, grams);
+  item.estimate = estimate;
+  currentDetectedItems.push(item);
+  manualFoodQueryEl.value = "";
+  renderDetectedItemsEditor();
+  syncCurrentAnalysisFromItems("Manual search");
+  setMessage(`Страву «${estimate.foodName || query}» додано з бази.`);
 }
 
 async function recalculateDetectedItems() {
@@ -869,6 +915,7 @@ async function analyzeImage() {
     } catch {}
 
     renderPredictionChips(labels);
+    manualFoodQueryEl.value = labels[0] || "";
     currentProviderSource = provider;
     currentConfidence = predictions[0]?.probability || 0;
     const baseGrams = Math.max(1, Number(recognizedGrams || gramsInputEl.value || 250));
@@ -1201,11 +1248,20 @@ function wireEvents() {
   profileHeightEl.addEventListener("change", onProfileChange);
   profileAgeEl.addEventListener("input", onProfileInput);
   profileAgeEl.addEventListener("change", onProfileChange);
+  toggleSettingsButtonEl.addEventListener("click", toggleSettingsPanel);
 
   addItemButtonEl.addEventListener("click", () => {
     currentDetectedItems.push(makeDetectedItem("manual food", Number(gramsInputEl.value || 150)));
     renderDetectedItemsEditor();
     syncCurrentAnalysisFromItems("Manual edit");
+  });
+  manualSearchButtonEl.addEventListener("click", () => {
+    addManualItemFromSearch().catch((error) => setMessage(error.message, true));
+  });
+  manualFoodQueryEl.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addManualItemFromSearch().catch((error) => setMessage(error.message, true));
   });
   recalculateItemsButtonEl.addEventListener("click", () => {
     recalculateDetectedItems()
@@ -1225,23 +1281,39 @@ function wireEvents() {
     const action = target.dataset.action;
     if (action === "toggle" && target instanceof HTMLInputElement) {
       item.selected = target.checked;
+      renderDetectedItemsEditor();
+      syncCurrentAnalysisFromItems();
+      return;
     }
     if (action === "label" && target instanceof HTMLInputElement) {
       item.label = String(target.value || "").trim() || "unknown food";
-      item.estimate = null;
     }
     if (action === "grams" && target instanceof HTMLInputElement) {
       item.grams = Math.max(1, Number(target.value || item.grams || 1));
-      item.estimate = null;
     }
-    renderDetectedItemsEditor();
-    syncCurrentAnalysisFromItems();
+    recalculateSingleItem(item.id)
+      .then(() => {
+        renderDetectedItemsEditor();
+        syncCurrentAnalysisFromItems();
+      })
+      .catch((error) => setMessage(error.message, true));
   });
   detectedItemsListEl.addEventListener("click", (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement) || target.dataset.action !== "remove") return;
+    if (!(target instanceof HTMLElement)) return;
     const rowEl = target.closest(".detected-item-row");
     if (!rowEl) return;
+    if (target.dataset.action === "find") {
+      recalculateSingleItem(rowEl.dataset.id)
+        .then(() => {
+          renderDetectedItemsEditor();
+          syncCurrentAnalysisFromItems();
+          setMessage("Позицію перераховано з бази.");
+        })
+        .catch((error) => setMessage(error.message, true));
+      return;
+    }
+    if (target.dataset.action !== "remove") return;
     currentDetectedItems = currentDetectedItems.filter((item) => item.id !== rowEl.dataset.id);
     renderDetectedItemsEditor();
     syncCurrentAnalysisFromItems();
@@ -1261,6 +1333,7 @@ async function init() {
   viewDateEl.value = today;
   renderDetectedItemsEditor();
   applyProfileToForm();
+  renderSettingsPanelState();
   setNutritionResult(null);
   renderTotals();
   wireEvents();

@@ -635,7 +635,7 @@ select:focus {
   padding: 0.45rem;
   background: rgba(255, 255, 255, 0.52);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 92px 78px auto;
+  grid-template-columns: auto minmax(0, 1fr) 92px 78px auto auto;
   gap: 0.35rem;
   align-items: center;
 }
@@ -652,6 +652,16 @@ select:focus {
 .detected-item-row .item-remove {
   min-width: 2rem;
   padding: 0.32rem 0.48rem;
+}
+
+.detected-item-row .item-find {
+  padding: 0.32rem 0.52rem;
+  min-width: 3.8rem;
+}
+
+#manual-food-query {
+  flex: 1 1 280px;
+  min-width: 200px;
 }
 
 .detected-item-row small {
@@ -856,13 +866,18 @@ progress {
   }
 
   .detected-item-row {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detected-item-row .item-check {
+    grid-column: 1 / -1;
   }
 
   .detected-item-row .item-kcal,
+  .detected-item-row .item-find,
   .detected-item-row .item-remove,
   .detected-item-row input[data-action="grams"] {
-    grid-column: span 1;
+    grid-column: auto;
   }
 
   .profile-grid {
