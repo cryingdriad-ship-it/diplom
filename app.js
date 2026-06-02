@@ -947,7 +947,7 @@ async function fetchManualFoodSuggestions(query) {
     return;
   }
   try {
-    const data = await api(`/api/food/search?q=${encodeURIComponent(q)}&limit=8`);
+    const data = await api(`/api/food/search?q=${encodeURIComponent(q)}&limit=12`);
     if (requestId !== manualSuggestRequestId) return;
     renderManualFoodSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
   } catch {
@@ -1027,11 +1027,10 @@ async function analyzeImage() {
       gramsInputEl.value = String(Math.round(baseGrams));
     }
     const topLabels = labels.slice(0, 4);
-    const splitGrams = Math.max(1, Math.round(baseGrams / Math.max(1, topLabels.length)));
     currentDetectedItems = topLabels.map((label, index) => {
-      const itemGrams = recognizedGrams && topLabels.length > 1 ? splitGrams : baseGrams;
-      const item = makeDetectedItem(label, itemGrams);
-      item.selected = index < 2 || topLabels.length === 1;
+      const item = makeDetectedItem(label, baseGrams);
+      // By default only the most likely dish is selected.
+      item.selected = index === 0;
       return item;
     });
     if (!currentDetectedItems.length) {
@@ -1041,8 +1040,9 @@ async function analyzeImage() {
     await recalculateDetectedItems();
     syncCurrentAnalysisFromItems();
     const debugNote = providerDiagnostics ? ` Причина fallback: ${providerDiagnostics}.` : "";
+    const singlePickHint = topLabels.length > 1 ? " За замовчуванням обрано перший варіант страви." : "";
     setMessage(
-      `Процес завершено. Оберіть потрібні позиції, за потреби відредагуйте, потім натисніть «Додати у щоденник».${debugNote}`
+      `Процес завершено. Оберіть потрібні позиції, за потреби відредагуйте, потім натисніть «Додати у щоденник».${singlePickHint}${debugNote}`
     );
   } catch (error) {
     currentAnalysis = null;
@@ -1099,6 +1099,14 @@ async function saveEntry() {
   await loadDayDiary(activeDateKey());
   await loadHistory(30);
   setMessage(`Додано записів: ${entriesToSave.length}.`);
+}
+
+async function refreshCurrentDayData(showMessage = false) {
+  await loadDayDiary(activeDateKey());
+  await loadHistory(30);
+  if (showMessage) {
+    setMessage("Дані за обрану дату оновлено.");
+  }
 }
 
 async function deleteEntry(entryId) {
@@ -1330,7 +1338,7 @@ function wireEvents() {
     clearCurrentDay().catch((error) => setMessage(error.message, true));
   });
   refreshDayEl.addEventListener("click", () => {
-    loadDayDiary(activeDateKey()).catch((error) => setMessage(error.message, true));
+    refreshCurrentDayData(true).catch((error) => setMessage(error.message, true));
   });
   entryDateEl.addEventListener("change", () => {
     viewDateEl.value = activeDateKey();
