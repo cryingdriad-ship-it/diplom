@@ -749,7 +749,7 @@ async function loadHistory(days = 30) {
 async function loadModel() {
   if (typeof mobilenet === "undefined") {
     model = null;
-    setModelStatus("MobileNet недоступний — використовується серверне AI-розпізнавання.", true);
+    setModelStatus("", false);
     updateAnalyzeButtonState();
     return;
   }
@@ -759,7 +759,7 @@ async function loadModel() {
     setModelStatus("Модель готова до аналізу", true);
   } catch {
     model = null;
-    setModelStatus("MobileNet не завантажено — використовується серверне AI-розпізнавання.", true);
+    setModelStatus("", false);
   }
   updateAnalyzeButtonState();
 }
