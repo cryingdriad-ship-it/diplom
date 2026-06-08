@@ -350,6 +350,43 @@ def init_db() -> None:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS custom_foods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            aliases TEXT NOT NULL DEFAULT '[]',
+            grams_base REAL NOT NULL DEFAULT 100,
+            calories REAL NOT NULL,
+            protein REAL NOT NULL,
+            fat REAL NOT NULL,
+            carbs REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_custom_foods_user_id ON custom_foods(user_id)")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_foods_user_name ON custom_foods(user_id, name COLLATE NOCASE)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_custom_foods_user_updated ON custom_foods(user_id, updated_at DESC)")
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS weight_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date_key TEXT NOT NULL,
+            weight_kg REAL NOT NULL,
+            note TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_weight_logs_user_date ON weight_logs(user_id, date_key)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_weight_logs_user_updated ON weight_logs(user_id, updated_at DESC)")
     conn.commit()
     conn.close()
 
@@ -510,12 +547,13 @@ def search_local_food_library(query: str) -> Optional[FoodResult]:
     )
 
 
-def search_food_suggestions(query: str, limit: int = 8) -> list[str]:
+def search_food_suggestions(query: str, limit: int = 8, user_id: Optional[int] = None) -> list[str]:
     query_text = (query or "").strip().lower()
     if len(query_text) < 2:
         return []
     query_tokens = [token for token in tokenize_text(query_text) if len(token) >= 2]
     scored: list[tuple[int, str]] = []
+    scored.extend(search_custom_food_suggestions(user_id, query))
 
     for item in LOCAL_FOOD_LIBRARY:
         best_score = 0
@@ -555,6 +593,126 @@ def search_food_suggestions(query: str, limit: int = 8) -> list[str]:
         if len(unique) >= limit:
             break
     return unique
+
+
+def normalize_aliases(raw_aliases, fallback_name: str = "") -> list[str]:
+    aliases: list[str] = []
+    if isinstance(raw_aliases, str):
+        aliases.extend([part.strip() for part in re.split(r"[,\n;]+", raw_aliases) if part.strip()])
+    elif isinstance(raw_aliases, list):
+        for item in raw_aliases:
+            text = str(item).strip()
+            if text:
+                aliases.append(text)
+    if fallback_name:
+        aliases.append(str(fallback_name).strip())
+    unique: list[str] = []
+    seen = set()
+    for alias in aliases:
+        key = alias.casefold()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique.append(alias)
+    return unique
+
+
+def parse_stored_aliases(aliases_json: str, fallback_name: str = "") -> list[str]:
+    aliases = []
+    try:
+        parsed = json.loads(aliases_json or "[]")
+        if isinstance(parsed, list):
+            aliases = parsed
+    except (json.JSONDecodeError, TypeError):
+        aliases = []
+    return normalize_aliases(aliases, fallback_name=fallback_name)
+
+
+def alias_match_score(query_text: str, query_tokens: list[str], aliases: list[str]) -> int:
+    score = 0
+    for alias in [str(value).lower() for value in aliases]:
+        if query_text == alias:
+            score = max(score, 10)
+        elif query_text in alias or alias in query_text:
+            score = max(score, 7)
+        if query_tokens:
+            hits = sum(1 for token in query_tokens if token in alias)
+            score = max(score, hits * 2)
+    return score
+
+
+def search_custom_food_library(user_id: Optional[int], query: str) -> Optional[FoodResult]:
+    if not user_id:
+        return None
+    query_text = (query or "").strip().lower()
+    if not query_text:
+        return None
+    query_tokens = [token for token in tokenize_text(query_text) if len(token) >= 2]
+    conn = db_connect()
+    rows = conn.execute(
+        "SELECT name, aliases, grams_base, calories, protein, fat, carbs FROM custom_foods WHERE user_id = ?",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+
+    best_row = None
+    best_score = 0
+    for row in rows:
+        aliases = parse_stored_aliases(row["aliases"], fallback_name=row["name"])
+        score = alias_match_score(query_text, query_tokens, aliases)
+        if score > best_score:
+            best_score = score
+            best_row = row
+    if not best_row or best_score < 3:
+        return None
+    grams_base = max(1.0, safe_number(best_row["grams_base"]) or 100.0)
+    return FoodResult(
+        name=best_row["name"],
+        grams=grams_base,
+        calories=safe_number(best_row["calories"]),
+        protein=safe_number(best_row["protein"]),
+        fat=safe_number(best_row["fat"]),
+        carbs=safe_number(best_row["carbs"]),
+        source="Custom food library",
+    )
+
+
+def search_custom_food_suggestions(user_id: Optional[int], query: str) -> list[tuple[int, str]]:
+    if not user_id:
+        return []
+    query_text = (query or "").strip().lower()
+    if len(query_text) < 2:
+        return []
+    query_tokens = [token for token in tokenize_text(query_text) if len(token) >= 2]
+    conn = db_connect()
+    rows = conn.execute(
+        "SELECT name, aliases FROM custom_foods WHERE user_id = ? ORDER BY updated_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+
+    scored: list[tuple[int, str]] = []
+    for row in rows:
+        aliases = parse_stored_aliases(row["aliases"], fallback_name=row["name"])
+        score = alias_match_score(query_text, query_tokens, aliases)
+        if score > 0:
+            scored.append((score + 2, row["name"]))
+    return scored
+
+
+def custom_food_row_to_dict(row: sqlite3.Row) -> dict:
+    return {
+        "id": int(row["id"]),
+        "name": row["name"],
+        "aliases": parse_stored_aliases(row["aliases"], fallback_name=row["name"]),
+        "gramsBase": round(max(1.0, safe_number(row["grams_base"]) or 100.0), 1),
+        "calories": round(safe_number(row["calories"]), 1),
+        "protein": round(safe_number(row["protein"]), 1),
+        "fat": round(safe_number(row["fat"]), 1),
+        "carbs": round(safe_number(row["carbs"]), 1),
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
 
 
 def unique_labels(candidates: list[str], limit: int = 5) -> list[str]:
@@ -1062,7 +1220,11 @@ def fallback_food(query: str) -> FoodResult:
     return FoodResult(name=query or "Unknown food", grams=100.0, calories=220, protein=10, fat=8, carbs=25, source="Fallback")
 
 
-def lookup_food_without_fallback(query: str, grams_hint: float = 100.0) -> Optional[FoodResult]:
+def lookup_food_without_fallback(query: str, grams_hint: float = 100.0, user_id: Optional[int] = None) -> Optional[FoodResult]:
+    custom_food = search_custom_food_library(user_id, query)
+    if custom_food:
+        return custom_food
+
     edamam = fetch_edamam_food(query, grams_hint)
     if edamam:
         return edamam
@@ -1086,8 +1248,8 @@ def lookup_food_without_fallback(query: str, grams_hint: float = 100.0) -> Optio
     return None
 
 
-def lookup_food(query: str, grams_hint: float = 100.0) -> FoodResult:
-    matched = lookup_food_without_fallback(query, grams_hint)
+def lookup_food(query: str, grams_hint: float = 100.0, user_id: Optional[int] = None) -> FoodResult:
+    matched = lookup_food_without_fallback(query, grams_hint, user_id=user_id)
     if matched:
         return matched
     return fallback_food(query)
@@ -1263,6 +1425,12 @@ def create_app() -> Flask:
                     "fatSecretConfigured": bool(FATSECRET_CLIENT_ID and FATSECRET_CLIENT_SECRET),
                     "openFoodFactsConfigured": True,
                 },
+                "dataEntities": {
+                    "users": True,
+                    "diaryEntries": True,
+                    "customFoods": True,
+                    "weightLogs": True,
+                },
             }
         )
 
@@ -1357,11 +1525,11 @@ def create_app() -> Flask:
             return jsonify({"error": "Не вказано назву/опис страви"}), 400
 
         if strict_search:
-            food = lookup_food_without_fallback(query, grams)
+            food = lookup_food_without_fallback(query, grams, user_id=user_id)
             if not food:
                 return jsonify({"error": "Страву не знайдено у базах даних. Уточніть назву."}), 404
         else:
-            food = lookup_food(query, grams)
+            food = lookup_food(query, grams, user_id=user_id)
         estimate = apply_gram_multiplier(food, grams)
         return jsonify(
             {
@@ -1380,13 +1548,250 @@ def create_app() -> Flask:
 
     @app.get("/api/food/search")
     def search_food():
+        user_id = current_user_id()
         query = (request.args.get("q") or "").strip()
         try:
             limit = int(request.args.get("limit", "8"))
         except ValueError:
             limit = 8
         limit = max(1, min(20, limit))
-        return jsonify({"query": query, "suggestions": search_food_suggestions(query, limit)})
+        return jsonify({"query": query, "suggestions": search_food_suggestions(query, limit, user_id=user_id)})
+
+    @app.get("/api/custom-foods")
+    def get_custom_foods():
+        user_id, auth_error = auth_required()
+        if auth_error:
+            return auth_error
+        query = (request.args.get("q") or "").strip().lower()
+        try:
+            limit = int(request.args.get("limit", "50"))
+        except ValueError:
+            limit = 50
+        limit = max(1, min(200, limit))
+
+        conn = db_connect()
+        rows = conn.execute(
+            """
+            SELECT id, name, aliases, grams_base, calories, protein, fat, carbs, created_at, updated_at
+            FROM custom_foods
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        conn.close()
+
+        if query:
+            query_tokens = [token for token in tokenize_text(query) if len(token) >= 2]
+            scored_rows: list[tuple[int, sqlite3.Row]] = []
+            for row in rows:
+                aliases = parse_stored_aliases(row["aliases"], fallback_name=row["name"])
+                score = alias_match_score(query, query_tokens, aliases)
+                if score > 0:
+                    scored_rows.append((score, row))
+            scored_rows.sort(key=lambda item: (-item[0], item[1]["name"]))
+            rows = [row for _, row in scored_rows]
+
+        items = [custom_food_row_to_dict(row) for row in rows[:limit]]
+        return jsonify({"items": items, "count": len(items)})
+
+    @app.post("/api/custom-foods")
+    def upsert_custom_food():
+        user_id, auth_error = auth_required()
+        if auth_error:
+            return auth_error
+
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        if len(name) < 2:
+            return jsonify({"error": "Назва страви має містити щонайменше 2 символи"}), 400
+
+        grams_base = clamp_number(parse_float(payload.get("gramsBase") or 100), 1.0, 2000.0)
+        calories = parse_float(payload.get("calories") or 0)
+        protein = max(0.0, parse_float(payload.get("protein") or 0))
+        fat = max(0.0, parse_float(payload.get("fat") or 0))
+        carbs = max(0.0, parse_float(payload.get("carbs") or 0))
+        if calories <= 0:
+            return jsonify({"error": "Калорійність повинна бути більшою за 0"}), 400
+
+        aliases = normalize_aliases(payload.get("aliases"), fallback_name=name)
+        aliases_json = json.dumps(aliases, ensure_ascii=False)
+        now = dt.datetime.utcnow().isoformat()
+
+        conn = db_connect()
+        cur = conn.cursor()
+        existing = cur.execute(
+            "SELECT id FROM custom_foods WHERE user_id = ? AND lower(name) = lower(?)",
+            (user_id, name),
+        ).fetchone()
+        if existing:
+            food_id = int(existing["id"])
+            cur.execute(
+                """
+                UPDATE custom_foods
+                SET name = ?, aliases = ?, grams_base = ?, calories = ?, protein = ?, fat = ?, carbs = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (name, aliases_json, grams_base, calories, protein, fat, carbs, now, food_id, user_id),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO custom_foods(
+                    user_id, name, aliases, grams_base, calories, protein, fat, carbs, created_at, updated_at
+                )
+                VALUES(?,?,?,?,?,?,?,?,?,?)
+                """,
+                (user_id, name, aliases_json, grams_base, calories, protein, fat, carbs, now, now),
+            )
+            food_id = int(cur.lastrowid)
+        conn.commit()
+
+        row = conn.execute(
+            """
+            SELECT id, name, aliases, grams_base, calories, protein, fat, carbs, created_at, updated_at
+            FROM custom_foods
+            WHERE id = ? AND user_id = ?
+            """,
+            (food_id, user_id),
+        ).fetchone()
+        conn.close()
+
+        return jsonify({"item": custom_food_row_to_dict(row)})
+
+    @app.delete("/api/custom-foods/<int:food_id>")
+    def delete_custom_food(food_id: int):
+        user_id, auth_error = auth_required()
+        if auth_error:
+            return auth_error
+        conn = db_connect()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM custom_foods WHERE id = ? AND user_id = ?", (food_id, user_id))
+        conn.commit()
+        deleted = cur.rowcount
+        conn.close()
+        if deleted == 0:
+            return jsonify({"error": "Користувацьку страву не знайдено"}), 404
+        return jsonify({"ok": True})
+
+    @app.get("/api/weight-logs")
+    def get_weight_logs():
+        user_id, auth_error = auth_required()
+        if auth_error:
+            return auth_error
+        try:
+            days = int(request.args.get("days", "90"))
+        except ValueError:
+            days = 90
+        days = max(1, min(365, days))
+        today = dt.date.today()
+        start = today - dt.timedelta(days=days - 1)
+
+        conn = db_connect()
+        rows = conn.execute(
+            """
+            SELECT id, date_key, weight_kg, note, created_at, updated_at
+            FROM weight_logs
+            WHERE user_id = ? AND date_key BETWEEN ? AND ?
+            ORDER BY date_key ASC
+            """,
+            (user_id, start.isoformat(), today.isoformat()),
+        ).fetchall()
+        conn.close()
+
+        entries = [
+            {
+                "id": int(row["id"]),
+                "dateKey": row["date_key"],
+                "weightKg": round(safe_number(row["weight_kg"]), 1),
+                "note": row["note"] or "",
+                "createdAt": row["created_at"],
+                "updatedAt": row["updated_at"],
+            }
+            for row in rows
+        ]
+        start_weight = entries[0]["weightKg"] if entries else None
+        latest_weight = entries[-1]["weightKg"] if entries else None
+        delta = round(latest_weight - start_weight, 1) if entries else None
+        trend = "stable"
+        if delta is not None:
+            if delta <= -0.2:
+                trend = "down"
+            elif delta >= 0.2:
+                trend = "up"
+        return jsonify(
+            {
+                "entries": entries,
+                "startWeightKg": start_weight,
+                "latestWeightKg": latest_weight,
+                "deltaKg": delta,
+                "trend": trend,
+            }
+        )
+
+    @app.post("/api/weight-logs")
+    def upsert_weight_log():
+        user_id, auth_error = auth_required()
+        if auth_error:
+            return auth_error
+
+        payload = request.get_json(silent=True) or {}
+        weight_kg = clamp_number(parse_float(payload.get("weightKg")), 30.0, 300.0)
+        date_key = (payload.get("dateKey") or dt.date.today().isoformat()).strip()
+        note = (payload.get("note") or "").strip()
+        if len(note) > 280:
+            note = note[:280]
+        try:
+            dt.date.fromisoformat(date_key)
+        except ValueError:
+            return jsonify({"error": "Некоректний формат dateKey (очікується YYYY-MM-DD)"}), 400
+        if weight_kg <= 0:
+            return jsonify({"error": "Некоректне значення ваги"}), 400
+
+        now = dt.datetime.utcnow().isoformat()
+        conn = db_connect()
+        cur = conn.cursor()
+        existing = cur.execute(
+            "SELECT id FROM weight_logs WHERE user_id = ? AND date_key = ?",
+            (user_id, date_key),
+        ).fetchone()
+        if existing:
+            log_id = int(existing["id"])
+            cur.execute(
+                """
+                UPDATE weight_logs
+                SET weight_kg = ?, note = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (weight_kg, note, now, log_id, user_id),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO weight_logs(user_id, date_key, weight_kg, note, created_at, updated_at)
+                VALUES(?,?,?,?,?,?)
+                """,
+                (user_id, date_key, weight_kg, note, now, now),
+            )
+            log_id = int(cur.lastrowid)
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, date_key, weight_kg, note, created_at, updated_at FROM weight_logs WHERE id = ? AND user_id = ?",
+            (log_id, user_id),
+        ).fetchone()
+        conn.close()
+        return jsonify(
+            {
+                "entry": {
+                    "id": int(row["id"]),
+                    "dateKey": row["date_key"],
+                    "weightKg": round(safe_number(row["weight_kg"]), 1),
+                    "note": row["note"] or "",
+                    "createdAt": row["created_at"],
+                    "updatedAt": row["updated_at"],
+                }
+            }
+        )
 
     @app.post("/api/diary/entries")
     def create_entry():
