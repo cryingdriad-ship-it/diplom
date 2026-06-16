@@ -1,0 +1,4 @@
+myfitnesspal.db
+__pycache__/
+.env
+.env.*

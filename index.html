@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0ea84f" />
+    <title>MyFitnessPal AI</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="landingView" class="landing-shell">
+        <header class="top-nav">
+          <button id="logoHomeButton" class="brand brand-button" type="button" aria-label="На головну сторінку">
+            <span class="brand-logo" aria-hidden="true"></span>
+            <span>NUTRIWELL</span>
+          </button>
+          <nav class="menu">
+            <button id="navInfoButton" class="menu-link" type="button">Дізнатись більше</button>
+            <button id="navContactsButton" class="menu-link" type="button">Контакти</button>
+          </nav>
+          <div class="nav-actions">
+            <button id="navSignInButton" class="btn ghost motion-cta" type="button">Вхід</button>
+            <button id="navGetStartedButton" class="btn accent motion-cta" type="button">Зареєструватись</button>
+          </div>
+        </header>
+
+        <div id="landingSplit" class="landing-split">
+          <section class="landing-left">
+            <section id="landingHomeScreen" class="landing-screen">
+              <h1 class="hero-title">
+                <span class="title-line delay-0">Досягайте цілей</span>
+                <span class="title-line delay-1">легше з розумним</span>
+                <span class="title-line delay-2">контролем калорій.</span>
+              </h1>
+              <div class="hero-actions">
+                <button id="heroRegisterButton" class="btn accent motion-cta" type="button">Зареєструватись</button>
+                <button id="heroLoginButton" class="btn ghost motion-cta" type="button">Вхід</button>
+                <button id="guestModeButton" class="btn outline-accent motion-cta" type="button">Продовжити як гість</button>
+              </div>
+            </section>
+
+            <section id="landingRegisterScreen" class="landing-screen hidden">
+              <h2 class="auth-title anim-text">Вітаємо на NUTRIWELL👋</h2>
+              <h3 class="auth-subtitle anim-text">Реєстрація</h3>
+              <form id="registerForm" class="auth-form anim-block">
+                <label>Email:
+                  <input id="registerEmail" type="email" required />
+                </label>
+                <label>Пароль:
+                  <input id="registerPassword" type="password" minlength="6" required />
+                </label>
+                <button class="btn accent" type="submit">Зареєструватись</button>
+              </form>
+              <p class="switch-copy anim-text">
+                Вже є наш акаунт?
+                <button id="switchToLoginButton" class="switch-link" type="button">Вхід</button>
+              </p>
+            </section>
+
+            <section id="landingLoginScreen" class="landing-screen hidden">
+              <h2 class="auth-title anim-text">Вітаємо на NUTRIWELL👋</h2>
+              <h3 class="auth-subtitle anim-text">Вхід</h3>
+              <form id="loginForm" class="auth-form anim-block">
+                <label>Email:
+                  <input id="loginEmail" type="email" required />
+                </label>
+                <label>Пароль:
+                  <input id="loginPassword" type="password" required />
+                </label>
+                <button class="btn accent" type="submit">Увійти в акаунт</button>
+              </form>
+              <p class="switch-copy anim-text">
+                Нема нашого акаунта?
+                <button id="switchToRegisterButton" class="switch-link" type="button">Зареєструватись</button>
+              </p>
+            </section>
+
+            <section id="landingInfoScreen" class="landing-screen hidden">
+              <article class="info-card">
+                <header class="info-header">
+                  <span class="brand-logo info-logo" aria-hidden="true"></span>
+                  <h2 class="anim-text">NUTRIWELL | ПРО НАС</h2>
+                </header>
+                <p class="anim-text">
+                  NUTRIWELL — твій інноваційний щоденник харчування, який працює за допомогою штучного інтелекту.
+                </p>
+                <p class="anim-text">
+                  Більше ніяких складних ручних записів: просто зроби фото своєї їжі, і наша система миттєво
+                  проаналізує її склад та підрахує калорії.
+                </p>
+                <p class="anim-text">
+                  Завдяки NUTRIWELL, ведення щоденника стає інтуїтивно зрозумілим, допомагаючи вам ефективніше
+                  відстежувати прогрес та досягати поставлених цілей у харчуванні.
+                </p>
+              </article>
+            </section>
+
+            <section id="landingContactsScreen" class="landing-screen hidden">
+              <article class="info-card contact-card">
+                <header class="info-header">
+                  <span class="brand-logo info-logo" aria-hidden="true"></span>
+                  <h2 class="anim-text">NUTRIWELL | КОНТАКТИ</h2>
+                </header>
+                <p class="contact-line anim-text">ВИКОНАЛА</p>
+                <p class="contact-line anim-text">СТУДЕНТКА КП-23 БАЛІНА АЛІНА</p>
+                <p class="contact-line contact-gap anim-text">ДЛЯ ЗВ’ЯЗКУ ЗІ МНОЮ:</p>
+                <p class="contact-link anim-text">📧 ALINABALINA11@GMAIL.COM</p>
+                <p class="contact-link anim-text">☎️ +380509286517</p>
+              </article>
+            </section>
+          </section>
+          <aside id="landingRight" class="landing-right" aria-hidden="true"></aside>
+        </div>
+
+        <section id="authCard" class="hidden" aria-hidden="true"></section>
+      </section>
+
+      <section id="dashboardView" class="hidden dashboard-shell">
+        <header class="top-nav dashboard-nav">
+          <button id="dashboardLogoHomeButton" class="brand brand-button" type="button" aria-label="На головну сторінку">
+            <span class="brand-logo" aria-hidden="true"></span>
+            <span>NUTRIWELL</span>
+          </button>
+          <nav class="menu">
+            <button id="dashboardInfoButton" class="menu-link" type="button">Дізнатись більше</button>
+            <button id="dashboardContactsButton" class="menu-link" type="button">Контакти</button>
+          </nav>
+          <div class="nav-actions">
+            <button id="switchToAccountButton" class="btn ghost hidden motion-cta" type="button">Увійти в акаунт</button>
+            <button id="logoutButton" class="btn ghost motion-cta" type="button">Вийти</button>
+            <button id="install-button" class="btn ghost motion-cta" hidden type="button">Встановити застосунок</button>
+          </div>
+        </header>
+
+        <section class="panel glass-card stats-hero">
+          <header class="summary-head">
+            <h3>Зведення дня</h3>
+          </header>
+          <div class="summary-main">
+            <article class="summary-metric">
+              <strong id="gauge-calories">0 ккал</strong>
+              <span>Спожито</span>
+            </article>
+            <div class="summary-ring-wrap">
+              <div id="calorieGauge" class="summary-ring">
+                <div class="summary-ring-center">
+                  <strong id="gauge-remaining">0 ккал</strong>
+                  <span>Залишилось</span>
+                </div>
+              </div>
+            </div>
+            <article class="summary-metric">
+              <strong id="gauge-target">0 ккал</strong>
+              <span>Ціль</span>
+            </article>
+          </div>
+          <div class="summary-macros">
+            <article class="summary-macro">
+              <p>Вуглеводи</p>
+              <div class="summary-track"><i id="summary-carb-bar"></i></div>
+              <strong id="summary-carb-stat">0 / 0 г</strong>
+            </article>
+            <article class="summary-macro">
+              <p>Білки</p>
+              <div class="summary-track"><i id="summary-protein-bar"></i></div>
+              <strong id="summary-protein-stat">0 / 0 г</strong>
+            </article>
+            <article class="summary-macro">
+              <p>Жири</p>
+              <div class="summary-track"><i id="summary-fat-bar"></i></div>
+              <strong id="summary-fat-stat">0 / 0 г</strong>
+            </article>
+          </div>
+          <div class="summary-foot hidden">
+            <span id="stat-protein">Білки: 0 г</span>
+            <span id="stat-to-target">Баланс: 0 ккал</span>
+          </div>
+        </section>
+
+        <section class="dashboard-grid" id="how-it-works">
+          <article class="panel glass-card">
+            <h2>Аналіз фото:</h2>
+            <p class="status">Після вибору фото натисніть «AI-аналіз».</p>
+            <input id="dashboard-photo-input" type="file" accept="image/*" capture="environment" />
+            <div class="controls">
+              <button id="analyze-button" class="btn accent motion-cta" disabled type="button">AI-аналіз</button>
+              <button id="clear-button" class="btn outline-accent motion-cta" type="button">Очистити</button>
+            </div>
+            <p id="model-status" class="status">Завантаження AI-моделі...</p>
+          </article>
+
+          <article class="panel glass-card">
+            <h2>Результат розпізнавання:</h2>
+            <div id="prediction-chips" class="chips"></div>
+            <div class="metrics compact">
+              <div class="metric"><span>Страва</span><strong id="guessed-food">—</strong></div>
+              <div class="metric hidden"><span>Джерело даних</span><strong id="nutrition-source">—</strong></div>
+              <div class="metric"><span>Порція (г)</span><strong id="detected-grams">—</strong></div>
+              <div class="metric"><span>Калорії</span><strong id="calories">—</strong></div>
+              <div class="metric"><span>Білки</span><strong id="proteins">—</strong></div>
+              <div class="metric"><span>Жири</span><strong id="fats">—</strong></div>
+              <div class="metric"><span>Вуглеводи</span><strong id="carbs">—</strong></div>
+              <div class="metric hidden"><span>AI-впевненість</span><strong id="confidence">—</strong></div>
+            </div>
+            <div class="mini-visual">
+              <div class="mini-visual-row">
+                <span>Білки</span>
+                <div class="mini-visual-track"><i id="viz-protein-bar"></i></div>
+              </div>
+              <div class="mini-visual-row">
+                <span>Жири</span>
+                <div class="mini-visual-track"><i id="viz-fat-bar"></i></div>
+              </div>
+              <div class="mini-visual-row">
+                <span>Вуглеводи</span>
+                <div class="mini-visual-track"><i id="viz-carb-bar"></i></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel glass-card">
+            <h2>Щоденник за дату:</h2>
+            <div class="metrics">
+              <div class="metric"><span>Спожито</span><strong id="total-calories">0 ккал</strong></div>
+              <div class="metric"><span>Ціль</span><strong id="target-calories">2000 ккал</strong></div>
+              <div class="metric"><span>Виконання</span><strong id="target-percent">0%</strong></div>
+              <div class="metric"><span>Б/Ж/В</span><strong id="macro-ratio">0 / 0 / 0 г</strong></div>
+            </div>
+            <progress id="target-progress" max="100" value="0"></progress>
+            <p id="empty-log" class="status">Записів за цю дату немає.</p>
+            <ul id="daily-list" class="daily-list"></ul>
+          </article>
+
+          <article class="panel glass-card soft collapsible-panel">
+            <header class="panel-collapse-head">
+              <h2>Редагувати розпізнавання:</h2>
+              <button
+                id="toggle-edit-button"
+                class="panel-arrow-btn"
+                type="button"
+                aria-label="Згорнути блок редагування"
+                title="Згорнути блок редагування"
+              >
+                <span id="toggle-edit-arrow">⌄</span>
+              </button>
+            </header>
+            <div id="edit-panel-content" class="panel-collapse-body">
+              <div class="detected-editor">
+                <h3>Страви на фото</h3>
+                <p class="status">Можна змінити назву/грамовку, прибрати зайві або додати нову позицію.</p>
+                <div id="detected-items-list" class="detected-items-list"></div>
+                <div class="controls">
+                  <div id="manual-food-search-wrap" class="manual-food-search-wrap">
+                    <input
+                      id="manual-food-query"
+                      type="text"
+                      autocomplete="off"
+                      placeholder="Знайти страву в базі (наприклад, гречка з куркою)"
+                    />
+                    <div id="manual-food-suggest-box" class="manual-food-suggest-box hidden"></div>
+                  </div>
+                  <button id="manual-search-button" class="btn outline-accent motion-cta" type="button">Знайти і додати</button>
+                </div>
+              </div>
+              <div class="controls">
+                <button id="save-entry" class="btn accent motion-cta" disabled type="button">Додати у щоденник</button>
+                <button id="clear-day" class="btn outline-accent motion-cta" type="button">Очистити день</button>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel glass-card soft collapsible-panel">
+          <header class="panel-collapse-head">
+            <h2>Моя ціль:</h2>
+            <button
+              id="toggle-goal-button"
+              class="panel-arrow-btn"
+              type="button"
+              aria-label="Згорнути блок цілей"
+              title="Згорнути блок цілей"
+            >
+              <span id="toggle-goal-arrow">⌄</span>
+            </button>
+          </header>
+          <div id="goal-panel-content" class="panel-collapse-body">
+            <p id="accountEmail" class="status">—</p>
+            <p id="sessionModeBadge" class="status">Не авторизовано</p>
+            <div class="profile-editor">
+              <h3>Персональна ціль калорій</h3>
+              <p class="status">Вкажіть параметри тіла та режим: підтримка, схуднення або набір.</p>
+              <div class="controls profile-grid">
+                <label>
+                  Стать:
+                  <select id="profile-sex">
+                    <option value="female" selected>Жінка</option>
+                    <option value="male">Чоловік</option>
+                  </select>
+                </label>
+                <label>
+                  Вага (кг):
+                  <input id="profile-weight" type="number" min="35" max="250" step="0.1" value="65" />
+                </label>
+                <label>
+                  Зріст (см):
+                  <input id="profile-height" type="number" min="120" max="230" step="0.1" value="165" />
+                </label>
+                <label>
+                  Вік:
+                  <input id="profile-age" type="number" min="14" max="100" step="1" value="30" />
+                </label>
+                <label>
+                  Режим:
+                  <select id="goal-select">
+                    <option value="loss">Схуднення</option>
+                    <option value="maintain" selected>Підтримка ваги</option>
+                    <option value="gain">Набір маси</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <input id="grams-input" type="hidden" value="200" />
+            <input id="entry-date" type="hidden" />
+            <input id="view-date" type="hidden" />
+          </div>
+        </section>
+
+        <section class="panel glass-card history-panel">
+          <h2 id="pricing">Історія калорійності:</h2>
+          <div class="metrics">
+            <div class="metric"><span>Середнє за 7 днів</span><strong id="weekly-average">0 ккал</strong></div>
+            <div class="metric"><span>Період історії</span><strong>Останні 30 днів</strong></div>
+          </div>
+          <ul id="history-list" class="daily-list"></ul>
+        </section>
+      </section>
+
+      <p id="appMessage" class="footer">Система готова до роботи.</p>
+      <p id="blog" class="status center" data-contact="true">Demo MVP • Backend: Flask + SQLite • AI: OpenAI/Clarifai/MobileNet + Edamam/USDA/FatSecret/OpenFoodFacts</p>
+      <div id="contacts" class="hidden"></div>
+      <input id="image-input" class="hidden" type="file" accept="image/*" capture="environment" />
+      <button id="startProcessButton" class="hidden" type="button" disabled>Запустити процес</button>
+      <img id="image-preview" alt="Попередній перегляд страви" hidden />
+    </main>
+
+    <script src="./firebase-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
+    <script type="module" src="./app.js?v=20"></script>
+  </body>
+</html>
